@@ -12,6 +12,14 @@ func main() {
 	set := cfop.NewSubcmdsSet()
 
 	set.Add(
+		"build",
+		"Builds the website",
+		cfop.NewCmd(cfop.CmdConfig{
+			Fn: cmds.Build,
+		}),
+	)
+
+	set.Add(
 		"version",
 		"Prints the version",
 		cfop.NewCmd(cfop.CmdConfig{
