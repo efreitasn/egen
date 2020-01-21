@@ -1,0 +1,26 @@
+<h1>{{ .Post.Title }}</h1>
+<div>{{ .Post.Excerpt }}</div>
+<div>
+  <h2>Langs</h2>
+  <ul>
+    {{ with $data := . }}
+      {{ range .AlternateLinks }}
+        {{ if ne .Lang.Tag $data.Lang.Tag }}
+          <li>
+            <a href="{{ .URL }}">{{ .Lang.Name }}</a>
+          </li>
+        {{ end }}
+      {{ end }}
+    {{ end }}
+  </ul>
+</div>
+{{ if .Post.Keywords }}
+  <div>
+    {{ range .Post.Keywords }}
+    <div>{{ . }}</div>
+    {{ end }}
+  </div>
+{{ end }}
+<div>
+  {{ .Post.Content }}
+</div>

@@ -1,0 +1,7 @@
+<ul>
+  {{ range .Posts -}}
+    <li>
+      <a href="{{ .URL }}">{{ .Title }}</a>
+    </li>
+  {{- end }}
+</ul>
