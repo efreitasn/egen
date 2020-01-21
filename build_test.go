@@ -1,4 +1,4 @@
-package content
+package egen
 
 import (
 	"io/ioutil"
@@ -23,16 +23,11 @@ func TestBuild_ok(t *testing.T) {
 			buildOutPath := path.Join("testdata/build/ok", dir.Name(), "test_output")
 			expectedBuildOutPath := path.Join("testdata/build/ok", dir.Name(), "out")
 
-			wc, err := New(path.Join("testdata/build/ok", dir.Name(), "in"))
+			err := Build(path.Join("testdata/build/ok", dir.Name(), "in"), buildOutPath)
 			if err != nil {
 				t.Fatalf("unexpected err: %v", err)
 			}
 			// defer os.RemoveAll(buildOutPath)
-
-			err = wc.Build(buildOutPath)
-			if err != nil {
-				t.Fatalf("unexpected err: %v", err)
-			}
 
 			compareDirsRec(t, expectedBuildOutPath, buildOutPath)
 		})

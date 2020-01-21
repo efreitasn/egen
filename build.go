@@ -1,4 +1,4 @@
-package content
+package egen
 
 import (
 	"crypto/md5"
@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var configFilename = "egen.yaml"
 var postContentRegExp = regexp.MustCompile("(?s)^---\n(.*?)\n---(.*)")
 var htmlFilenameRegExp = regexp.MustCompile(".*\\.html")
 var indexHTML = `
@@ -41,6 +42,18 @@ var indexHTML = `
 </html>
 {{- end }}
 `
+
+type configFileData struct {
+	Title string
+	URL   string
+	Langs []*lang
+}
+
+type lang struct {
+	Name    string
+	Tag     string
+	Default bool
+}
 
 type templateData struct {
 	Title string
@@ -88,8 +101,30 @@ type alternateLink struct {
 }
 
 // Build builds the website.
-func (wc *WebsiteContent) Build(outPath string) error {
-	// deletes outPath if it doesn't already exist
+func Build(inPath, outPath string) error {
+	// config file
+	cFile, err := os.Open(path.Join(inPath, configFilename))
+	if err != nil {
+		return err
+	}
+
+	var cFileData configFileData
+
+	err = yaml.NewDecoder(cFile).Decode(&cFileData)
+	if err != nil {
+		return err
+	}
+
+	var defaultLang *lang
+
+	for _, lang := range cFileData.Langs {
+		if lang.Default {
+			defaultLang = lang
+			break
+		}
+	}
+
+	// deletes outPath if it already exists
 	if _, err := os.Stat(outPath); !os.IsNotExist(err) {
 		err := os.RemoveAll(outPath)
 		if err != nil {
@@ -97,13 +132,13 @@ func (wc *WebsiteContent) Build(outPath string) error {
 		}
 	}
 
-	err := os.Mkdir(outPath, os.ModeDir|os.ModePerm)
+	err = os.Mkdir(outPath, os.ModeDir|os.ModePerm)
 	if err != nil {
 		return err
 	}
 
 	// static
-	staticPath := path.Join(wc.path, "static")
+	staticPath := path.Join(inPath, "static")
 	staticPathOut := path.Join(outPath, "static")
 	var staticFilePaths map[string]string
 
@@ -120,7 +155,7 @@ func (wc *WebsiteContent) Build(outPath string) error {
 	}
 
 	// posts
-	postsPath := path.Join(wc.path, "posts")
+	postsPath := path.Join(inPath, "posts")
 	postsFileInfos, err := ioutil.ReadDir(postsPath)
 	if err != nil {
 		return err
@@ -165,7 +200,7 @@ func (wc *WebsiteContent) Build(outPath string) error {
 		postKeywords := strings.Split(postYAMLData.Keywords, ", ")
 
 		// content_*.md files
-		for _, l := range wc.langs {
+		for _, l := range cFileData.Langs {
 			var postURL string
 
 			if l.Default {
@@ -245,10 +280,10 @@ func (wc *WebsiteContent) Build(outPath string) error {
 		},
 		"relToAbsLink": func(link string) string {
 			if link == "/" {
-				return wc.url
+				return cFileData.URL
 			}
 
-			return wc.url + link
+			return cFileData.URL + link
 		},
 	}
 
@@ -256,7 +291,7 @@ func (wc *WebsiteContent) Build(outPath string) error {
 	baseTemplate := template.Must(template.New("base").Funcs(funcs).Parse(indexHTML))
 
 	// includes
-	includesPath := path.Join(wc.path, "includes")
+	includesPath := path.Join(inPath, "includes")
 	includesFileInfos, err := ioutil.ReadDir(includesPath)
 	if err != nil {
 		return err
@@ -290,7 +325,7 @@ func (wc *WebsiteContent) Build(outPath string) error {
 	}
 
 	// pages
-	pagesPath := path.Join(wc.path, "pages")
+	pagesPath := path.Join(inPath, "pages")
 
 	// home page
 	homePageContent, err := ioutil.ReadFile(path.Join(pagesPath, "home.html"))
@@ -313,7 +348,7 @@ func (wc *WebsiteContent) Build(outPath string) error {
 	)
 
 	// executing templates per lang
-	for _, l := range wc.langs {
+	for _, l := range cFileData.Langs {
 		data := templateData{
 			Posts: visiblePostsByLangTag[l.Tag],
 			Lang:  l,
@@ -329,19 +364,19 @@ func (wc *WebsiteContent) Build(outPath string) error {
 		}
 
 		// home page
-		data.Title = wc.title
+		data.Title = cFileData.Title
 		data.URL = "/"
 
 		// alternate links
-		data.AlternateLinks = make([]*alternateLink, 0, len(wc.langs))
+		data.AlternateLinks = make([]*alternateLink, 0, len(cFileData.Langs))
 
 		// default lang is always the first
 		data.AlternateLinks = append(data.AlternateLinks, &alternateLink{
 			URL:  "/",
-			Lang: wc.defaultLang,
+			Lang: defaultLang,
 		})
 
-		for _, l2 := range wc.langs {
+		for _, l2 := range cFileData.Langs {
 			if l2.Default {
 				continue
 			}
@@ -379,19 +414,19 @@ func (wc *WebsiteContent) Build(outPath string) error {
 				return err
 			}
 
-			data.Title = fmt.Sprintf("%v - %v", p.Title, wc.title)
+			data.Title = fmt.Sprintf("%v - %v", p.Title, cFileData.Title)
 			data.URL = "/posts/" + p.Slug
 
 			// alternate links
-			data.AlternateLinks = make([]*alternateLink, 0, len(wc.langs)-1)
+			data.AlternateLinks = make([]*alternateLink, 0, len(cFileData.Langs)-1)
 
 			// default lang is always the first
 			data.AlternateLinks = append(data.AlternateLinks, &alternateLink{
 				URL:  "/posts/" + p.Slug,
-				Lang: wc.defaultLang,
+				Lang: defaultLang,
 			})
 
-			for _, l2 := range wc.langs {
+			for _, l2 := range cFileData.Langs {
 				if l2.Default {
 					continue
 				}
