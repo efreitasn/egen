@@ -105,13 +105,13 @@ type AlternateLink struct {
 	Lang *Lang
 }
 
-// BuildConfig is the config used to build a website.
+// BuildConfig is the config used to build a blog.
 type BuildConfig struct {
 	InPath, OutPath string
 	Funcs           template.FuncMap
 }
 
-// Build builds the website.
+// Build builds the blog.
 func Build(bc BuildConfig) error {
 	// config file
 	cFile, err := os.Open(path.Join(bc.InPath, configFilename))
