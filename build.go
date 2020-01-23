@@ -51,7 +51,8 @@ type configFileData struct {
 
 // Lang represents a language.
 type Lang struct {
-	Name    string
+	Name string
+	// The language tag, as in RFC 5646.
 	Tag     string
 	Default bool
 }
