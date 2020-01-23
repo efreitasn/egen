@@ -46,30 +46,33 @@ var indexHTML = `
 type configFileData struct {
 	Title string
 	URL   string
-	Langs []*lang
+	Langs []*Lang
 }
 
-type lang struct {
+// Lang represents a language.
+type Lang struct {
 	Name    string
 	Tag     string
 	Default bool
 }
 
-type templateData struct {
+// TemplateData is the data passed to a template.
+type TemplateData struct {
 	Title string
 	// Posts is a list of posts that are visible (feed: true)
-	Posts []*post
+	Posts []*Post
 	// it's equal to nil unless it's the post page
-	Post *post
-	Lang *lang
+	Post *Post
+	Lang *Lang
 	// relative
 	URL string
 	// AlternateLinks is a list of alternate links to be used in meta tags.
 	// It also includes the current link.
-	AlternateLinks []*alternateLink
+	AlternateLinks []*AlternateLink
 }
 
-type post struct {
+// Post is a post received by a template.
+type Post struct {
 	Title          string
 	Content        template.HTML
 	Slug           string
@@ -77,7 +80,7 @@ type post struct {
 	Keywords       []string
 	Date           time.Time
 	LastUpdateDate time.Time
-	Lang           *lang
+	Lang           *Lang
 	// relative
 	URL string
 }
@@ -94,16 +97,23 @@ type postYAMLDataFileContent struct {
 	LastUpdateDate string `yaml:"lastUpdateDate"`
 }
 
-type alternateLink struct {
+// AlternateLink is a link to a version of the current page in another language.
+type AlternateLink struct {
 	// relative
 	URL  string
-	Lang *lang
+	Lang *Lang
+}
+
+// BuildConfig is the config used to build a website.
+type BuildConfig struct {
+	InPath, OutPath string
+	Funcs           template.FuncMap
 }
 
 // Build builds the website.
-func Build(inPath, outPath string) error {
+func Build(bc BuildConfig) error {
 	// config file
-	cFile, err := os.Open(path.Join(inPath, configFilename))
+	cFile, err := os.Open(path.Join(bc.InPath, configFilename))
 	if err != nil {
 		return err
 	}
@@ -115,7 +125,7 @@ func Build(inPath, outPath string) error {
 		return err
 	}
 
-	var defaultLang *lang
+	var defaultLang *Lang
 
 	for _, lang := range cFileData.Langs {
 		if lang.Default {
@@ -124,22 +134,22 @@ func Build(inPath, outPath string) error {
 		}
 	}
 
-	// deletes outPath if it already exists
-	if _, err := os.Stat(outPath); !os.IsNotExist(err) {
-		err := os.RemoveAll(outPath)
+	// deletes bc.OutPath if it already exists
+	if _, err := os.Stat(bc.OutPath); !os.IsNotExist(err) {
+		err := os.RemoveAll(bc.OutPath)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = os.Mkdir(outPath, os.ModeDir|os.ModePerm)
+	err = os.Mkdir(bc.OutPath, os.ModeDir|os.ModePerm)
 	if err != nil {
 		return err
 	}
 
 	// static
-	staticPath := path.Join(inPath, "static")
-	staticPathOut := path.Join(outPath, "static")
+	staticPath := path.Join(bc.InPath, "static")
+	staticPathOut := path.Join(bc.OutPath, "static")
 	var staticFilePaths map[string]string
 
 	if _, err := os.Stat(staticPath); !os.IsNotExist(err) {
@@ -155,13 +165,13 @@ func Build(inPath, outPath string) error {
 	}
 
 	// posts
-	postsPath := path.Join(inPath, "posts")
+	postsPath := path.Join(bc.InPath, "posts")
 	postsFileInfos, err := ioutil.ReadDir(postsPath)
 	if err != nil {
 		return err
 	}
-	visiblePostsByLangTag := make(map[string][]*post)
-	invisiblePostsByLangTag := make(map[string][]*post)
+	visiblePostsByLangTag := make(map[string][]*Post)
+	invisiblePostsByLangTag := make(map[string][]*Post)
 
 	for _, postsFileInfo := range postsFileInfos {
 		if !postsFileInfo.IsDir() {
@@ -209,7 +219,7 @@ func Build(inPath, outPath string) error {
 				postURL = fmt.Sprintf("/%v/posts/%v", l.Tag, postSlug)
 			}
 
-			p := post{
+			p := Post{
 				Slug:           postSlug,
 				Keywords:       postKeywords,
 				Date:           postDate,
@@ -252,13 +262,13 @@ func Build(inPath, outPath string) error {
 
 			if postYAMLData.Feed {
 				if visiblePostsByLangTag[l.Tag] == nil {
-					visiblePostsByLangTag[l.Tag] = make([]*post, 0, 1)
+					visiblePostsByLangTag[l.Tag] = make([]*Post, 0, 1)
 				}
 
 				visiblePostsByLangTag[l.Tag] = append(visiblePostsByLangTag[l.Tag], &p)
 			} else {
 				if invisiblePostsByLangTag[l.Tag] == nil {
-					invisiblePostsByLangTag[l.Tag] = make([]*post, 0, 1)
+					invisiblePostsByLangTag[l.Tag] = make([]*Post, 0, 1)
 				}
 
 				invisiblePostsByLangTag[l.Tag] = append(invisiblePostsByLangTag[l.Tag], &p)
@@ -267,31 +277,39 @@ func Build(inPath, outPath string) error {
 	}
 
 	// funcs
-	funcs := template.FuncMap{
-		"staticLink": func(filepath string) string {
-			if newFilePath, ok := staticFilePaths[filepath]; ok {
-				return "/static/" + newFilePath
-			}
+	var funcs template.FuncMap
 
-			return ""
-		},
-		"postLinkBySlugAndLang": func(slug string, l *lang) string {
-			return fmt.Sprintf("/%v/posts/%v", l.Tag, slug)
-		},
-		"relToAbsLink": func(link string) string {
-			if link == "/" {
-				return cFileData.URL
-			}
+	if bc.Funcs != nil {
+		funcs = bc.Funcs
+	} else {
+		funcs = make(template.FuncMap, 3)
+	}
 
-			return cFileData.URL + link
-		},
+	funcs["staticLink"] = func(filepath string) string {
+		if newFilePath, ok := staticFilePaths[filepath]; ok {
+			return "/static/" + newFilePath
+		}
+
+		return ""
+	}
+
+	funcs["postLinkBySlugAndLang"] = func(slug string, l *Lang) string {
+		return fmt.Sprintf("/%v/posts/%v", l.Tag, slug)
+	}
+
+	funcs["relToAbsLink"] = func(link string) string {
+		if link == "/" {
+			return cFileData.URL
+		}
+
+		return cFileData.URL + link
 	}
 
 	// templates
 	baseTemplate := template.Must(template.New("base").Funcs(funcs).Parse(indexHTML))
 
 	// includes
-	includesPath := path.Join(inPath, "includes")
+	includesPath := path.Join(bc.InPath, "includes")
 	includesFileInfos, err := ioutil.ReadDir(includesPath)
 	if err != nil {
 		return err
@@ -325,7 +343,7 @@ func Build(inPath, outPath string) error {
 	}
 
 	// pages
-	pagesPath := path.Join(inPath, "pages")
+	pagesPath := path.Join(bc.InPath, "pages")
 
 	// home page
 	homePageContent, err := ioutil.ReadFile(path.Join(pagesPath, "home.html"))
@@ -349,14 +367,14 @@ func Build(inPath, outPath string) error {
 
 	// executing templates per lang
 	for _, l := range cFileData.Langs {
-		data := templateData{
+		data := TemplateData{
 			Posts: visiblePostsByLangTag[l.Tag],
 			Lang:  l,
 		}
 
-		langOutPath := outPath
+		langOutPath := bc.OutPath
 		if !l.Default {
-			langOutPath = path.Join(outPath, l.Tag)
+			langOutPath = path.Join(bc.OutPath, l.Tag)
 			err := os.Mkdir(langOutPath, os.ModeDir|os.ModePerm)
 			if err != nil {
 				return err
@@ -368,10 +386,10 @@ func Build(inPath, outPath string) error {
 		data.URL = "/"
 
 		// alternate links
-		data.AlternateLinks = make([]*alternateLink, 0, len(cFileData.Langs))
+		data.AlternateLinks = make([]*AlternateLink, 0, len(cFileData.Langs))
 
 		// default lang is always the first
-		data.AlternateLinks = append(data.AlternateLinks, &alternateLink{
+		data.AlternateLinks = append(data.AlternateLinks, &AlternateLink{
 			URL:  "/",
 			Lang: defaultLang,
 		})
@@ -381,7 +399,7 @@ func Build(inPath, outPath string) error {
 				continue
 			}
 
-			data.AlternateLinks = append(data.AlternateLinks, &alternateLink{
+			data.AlternateLinks = append(data.AlternateLinks, &AlternateLink{
 				Lang: l2,
 				URL:  "/" + l2.Tag,
 			})
@@ -418,10 +436,10 @@ func Build(inPath, outPath string) error {
 			data.URL = "/posts/" + p.Slug
 
 			// alternate links
-			data.AlternateLinks = make([]*alternateLink, 0, len(cFileData.Langs)-1)
+			data.AlternateLinks = make([]*AlternateLink, 0, len(cFileData.Langs)-1)
 
 			// default lang is always the first
-			data.AlternateLinks = append(data.AlternateLinks, &alternateLink{
+			data.AlternateLinks = append(data.AlternateLinks, &AlternateLink{
 				URL:  "/posts/" + p.Slug,
 				Lang: defaultLang,
 			})
@@ -431,7 +449,7 @@ func Build(inPath, outPath string) error {
 					continue
 				}
 
-				data.AlternateLinks = append(data.AlternateLinks, &alternateLink{
+				data.AlternateLinks = append(data.AlternateLinks, &AlternateLink{
 					Lang: l2,
 					URL:  fmt.Sprintf("/%v/posts/%v", l2.Tag, p.Slug),
 				})

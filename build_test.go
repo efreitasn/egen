@@ -1,35 +1,52 @@
 package egen
 
 import (
+	"html/template"
 	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestBuild_ok(t *testing.T) {
-	dirs, err := ioutil.ReadDir("testdata/build/ok")
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
+	baseDir := path.Join("testdata", "build", "ok")
+
+	tests := []struct {
+		bc       BuildConfig
+		expected string
+	}{
+		{
+			BuildConfig{
+				InPath:  path.Join(baseDir, "1", "in"),
+				OutPath: path.Join(baseDir, "1", "test_output"),
+				Funcs: template.FuncMap{
+					"formatDateByLang": func(date time.Time, l *Lang) string {
+						switch l.Tag {
+						case "en":
+							return date.Format("01/02/2006")
+						case "pt-BR":
+							return date.Format("02/01/2006")
+						default:
+							return ""
+						}
+					},
+				},
+			},
+			path.Join(baseDir, "1", "out"),
+		},
 	}
 
-	for _, dir := range dirs {
-		if !dir.IsDir() {
-			continue
-		}
-
-		t.Run(dir.Name(), func(t *testing.T) {
-			buildOutPath := path.Join("testdata/build/ok", dir.Name(), "test_output")
-			expectedBuildOutPath := path.Join("testdata/build/ok", dir.Name(), "out")
-
-			err := Build(path.Join("testdata/build/ok", dir.Name(), "in"), buildOutPath)
+	for _, test := range tests {
+		t.Run(test.bc.InPath, func(t *testing.T) {
+			err := Build(test.bc)
 			if err != nil {
 				t.Fatalf("unexpected err: %v", err)
 			}
 			// defer os.RemoveAll(buildOutPath)
 
-			compareDirsRec(t, expectedBuildOutPath, buildOutPath)
+			compareDirsRec(t, test.bc.OutPath, test.expected)
 		})
 	}
 }

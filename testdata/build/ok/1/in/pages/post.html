@@ -1,4 +1,5 @@
 <h1>{{ .Post.Title }}</h1>
+<span>Date: {{ formatDateByLang .Post.Date .Lang }}</span>
 <div>{{ .Post.Excerpt }}</div>
 <div>
   <h2>Langs</h2>
