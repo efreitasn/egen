@@ -1,4 +1,6 @@
 feed: true
 date: 2020-01-10T21:43:00Z
-keywords: some, key
+keywords:
+  - some
+  - key
 img: red.png

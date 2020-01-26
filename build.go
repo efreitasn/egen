@@ -88,6 +88,7 @@ type configFileData struct {
 	Img         string
 	Langs       []*Lang
 	Author      *Author
+	Keywords    map[string]map[string]string
 }
 
 // Author represents an author.
@@ -155,10 +156,10 @@ type postYAMLFrontMatter struct {
 }
 
 type postYAMLDataFileContent struct {
-	Keywords       string `yaml:"keywords"`
-	Feed           bool   `yaml:"feed"`
-	Date           string `yaml:"date"`
-	LastUpdateDate string `yaml:"lastUpdateDate"`
+	Keywords       []string `yaml:"keywords"`
+	Feed           bool     `yaml:"feed"`
+	Date           string   `yaml:"date"`
+	LastUpdateDate string   `yaml:"lastUpdateDate"`
 	Img            string
 }
 
@@ -297,8 +298,6 @@ func Build(bc BuildConfig) error {
 			}
 		}
 
-		postKeywords := strings.Split(postYAMLData.Keywords, ", ")
-
 		var postImg *TemplateDataImg
 
 		if postYAMLData.Img != "" {
@@ -324,9 +323,26 @@ func Build(bc BuildConfig) error {
 				postURL = fmt.Sprintf("/%v/posts/%v", l.Tag, postSlug)
 			}
 
+			keywords := make([]string, len(postYAMLData.Keywords))
+			copy(keywords, postYAMLData.Keywords)
+
+			for i, keyword := range keywords {
+				kLangs, ok := cFileData.Keywords[keyword]
+				if !ok {
+					continue
+				}
+
+				k, ok := kLangs[l.Tag]
+				if !ok {
+					continue
+				}
+
+				keywords[i] = k
+			}
+
 			p := Post{
 				Slug:           postSlug,
-				Keywords:       postKeywords,
+				Keywords:       keywords,
 				Date:           postDate,
 				LastUpdateDate: postLastUpdateDate,
 				Lang:           l,
