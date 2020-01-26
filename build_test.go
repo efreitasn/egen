@@ -104,7 +104,7 @@ func compareDirsRec(t *testing.T, a, b string) {
 		}
 
 		if !reflect.DeepEqual(aFileDirContentBs, bFileDirContentBs) {
-			t.Errorf("content in %v is not the expected", bFileDirPath)
+			t.Errorf("content in %v is not the same as %v", aFileDirPath, bFileDirPath)
 		}
 	}
 }

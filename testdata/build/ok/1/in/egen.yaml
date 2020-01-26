@@ -1,6 +1,19 @@
 title: The thing
-description: A blog
+description:
+  - lang: en
+    text: A blog
+  - lang: pt-BR
+    text: Um blog
 url: https://foo.bar
+img: the-default-img.png
+imgAlt:
+  - lang: en
+    text: foo.bar's logo
+  - lang: pt-BR
+    text: logo do foo.bar
+author:
+  name: John Doe
+  twitter: johndoe
 langs:
   - tag: en
     name: English

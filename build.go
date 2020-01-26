@@ -31,6 +31,38 @@ var indexHTML = `
 <head>
   <meta charset="utf-8">
 	<title>{{ .Title }}</title>
+	{{ if .Description }}
+		<meta property="description" content="{{ .Description }}">
+	{{ end }}
+	{{ if eq .Page "home" }}
+		<meta property="og:type" content="website">
+	{{ else if eq .Page "post" }}
+		<meta property="og:type" content="article">
+	{{ end }}
+	<meta property="og:url" content="{{ relToAbsLink .URL }}">
+	<meta property="og:title" content="{{ .Title }}">
+	{{ if .Description }}
+		<meta property="og:description" content="{{ .Description }}">
+	{{ end }}
+	{{ if .Img }}
+		<meta property="og:image:url" content="{{ relToAbsLink (staticLink .Img.Name) }}">
+		<meta property="og:image:width" content="{{ .Img.Width }}">
+		<meta property="og:image:height" content="{{ .Img.Height }}">
+		<meta property="og:image:alt" content="{{ .Img.Alt }}">
+	{{ end }}
+	{{ if eq .Page "post" }}
+		<meta property="article:published_time" content="{{ dateISO .Post.Date }}">
+		{{ if not .Post.LastUpdateDate.IsZero }}
+			<meta property="article:modified_time" content="{{ dateISO .Post.LastUpdateDate }}">
+		{{ end }}
+	{{ end }}
+	{{ if .Img }}
+		<meta property="twitter:image:alt" content="{{ .Img.Alt }}">
+	{{ end }}
+	<meta property="twitter:site" content="@{{ .Author.Twitter }}">
+	{{ if eq .Page "post" }}
+	<meta property="twitter:creator" content="@{{ .Author.Twitter }}">
+	{{ end }}
 	{{ range .AlternateLinks -}}
   	<link rel="alternate" hreflang="{{ .Lang.Tag }}" href="{{ relToAbsLink .URL }}">
 	{{- end }}
@@ -43,10 +75,24 @@ var indexHTML = `
 {{- end }}
 `
 
+type configFileDataTextByLang struct {
+	Lang string
+	Text string
+}
+
 type configFileData struct {
-	Title string
-	URL   string
-	Langs []*Lang
+	Title       string
+	Description []configFileDataTextByLang
+	ImgAlt      []configFileDataTextByLang `yaml:"imgAlt"`
+	URL         string
+	Img         string
+	Langs       []*Lang
+	Author      *Author
+}
+
+// Author represents an author.
+type Author struct {
+	Name, Twitter string
 }
 
 // Lang represents a language.
@@ -57,9 +103,24 @@ type Lang struct {
 	Default bool
 }
 
+// TemplateDataImg represents the image of the current page/post.
+type TemplateDataImg struct {
+	Name   string
+	Alt    string
+	Width  int
+	Height int
+}
+
 // TemplateData is the data passed to a template.
 type TemplateData struct {
-	Title string
+	// Page is an identifier for the current page.
+	// Home page -> home
+	// Posts page -> posts
+	Page        string
+	Title       string
+	Description string
+	Author      *Author
+	Img         *TemplateDataImg
 	// Posts is a list of posts that are visible (feed: true)
 	Posts []*Post
 	// it's equal to nil unless it's the post page
@@ -78,6 +139,7 @@ type Post struct {
 	Content        template.HTML
 	Slug           string
 	Excerpt        string
+	Img            *TemplateDataImg
 	Keywords       []string
 	Date           time.Time
 	LastUpdateDate time.Time
@@ -89,6 +151,7 @@ type Post struct {
 type postYAMLFrontMatter struct {
 	Title   string `yaml:"title"`
 	Excerpt string `yaml:"excerpt"`
+	ImgAlt  string `yaml:"imgAlt"`
 }
 
 type postYAMLDataFileContent struct {
@@ -96,6 +159,7 @@ type postYAMLDataFileContent struct {
 	Feed           bool   `yaml:"feed"`
 	Date           string `yaml:"date"`
 	LastUpdateDate string `yaml:"lastUpdateDate"`
+	Img            string
 }
 
 // AlternateLink is a link to a version of the current page in another language.
@@ -135,6 +199,12 @@ func Build(bc BuildConfig) error {
 		}
 	}
 
+	descriptionByLangTag := make(map[string]string, len(cFileData.Description))
+
+	for _, d := range cFileData.Description {
+		descriptionByLangTag[d.Lang] = d.Text
+	}
+
 	// deletes bc.OutPath if it already exists
 	if _, err := os.Stat(bc.OutPath); !os.IsNotExist(err) {
 		err := os.RemoveAll(bc.OutPath)
@@ -162,6 +232,25 @@ func Build(bc BuildConfig) error {
 		staticFilePaths, err = processFilesToDirRec(staticPath, staticPathOut)
 		if err != nil {
 			return err
+		}
+	}
+
+	// img
+	defaultImgByLangTag := make(map[string]*TemplateDataImg, len(cFileData.ImgAlt))
+
+	if cFileData.Img != "" {
+		defaultImgWidth, defaultImgHeight, err := imgDimensions(path.Join(staticPath, cFileData.Img))
+		if err != nil {
+			return err
+		}
+
+		for _, ia := range cFileData.ImgAlt {
+			defaultImgByLangTag[ia.Lang] = &TemplateDataImg{
+				Name:   cFileData.Img,
+				Alt:    ia.Text,
+				Width:  defaultImgWidth,
+				Height: defaultImgHeight,
+			}
 		}
 	}
 
@@ -210,6 +299,21 @@ func Build(bc BuildConfig) error {
 
 		postKeywords := strings.Split(postYAMLData.Keywords, ", ")
 
+		var postImg *TemplateDataImg
+
+		if postYAMLData.Img != "" {
+			postImgWidth, postImgHeight, err := imgDimensions(path.Join(staticPath, postYAMLData.Img))
+			if err != nil {
+				return err
+			}
+
+			postImg = &TemplateDataImg{
+				Name:   postYAMLData.Img,
+				Width:  postImgWidth,
+				Height: postImgHeight,
+			}
+		}
+
 		// content_*.md files
 		for _, l := range cFileData.Langs {
 			var postURL string
@@ -257,6 +361,15 @@ func Build(bc BuildConfig) error {
 			p.Title = yamlData.Title
 			p.Excerpt = yamlData.Excerpt
 
+			if postImg != nil {
+				p.Img = &TemplateDataImg{
+					Name:   postImg.Name,
+					Width:  postImg.Width,
+					Height: postImg.Height,
+					Alt:    yamlData.ImgAlt,
+				}
+			}
+
 			// markdown
 			mdParser := parser.New()
 			p.Content = template.HTML(string(markdown.ToHTML(postContentMD, mdParser, nil)))
@@ -284,6 +397,10 @@ func Build(bc BuildConfig) error {
 		funcs = bc.Funcs
 	} else {
 		funcs = make(template.FuncMap, 3)
+	}
+
+	funcs["dateISO"] = func(d time.Time) string {
+		return d.Format(time.RFC3339)
 	}
 
 	funcs["staticLink"] = func(filepath string) string {
@@ -369,8 +486,9 @@ func Build(bc BuildConfig) error {
 	// executing templates per lang
 	for _, l := range cFileData.Langs {
 		data := TemplateData{
-			Posts: visiblePostsByLangTag[l.Tag],
-			Lang:  l,
+			Posts:  visiblePostsByLangTag[l.Tag],
+			Lang:   l,
+			Author: cFileData.Author,
 		}
 
 		langOutPath := bc.OutPath
@@ -384,7 +502,15 @@ func Build(bc BuildConfig) error {
 
 		// home page
 		data.Title = cFileData.Title
-		data.URL = "/"
+		data.Description = descriptionByLangTag[l.Tag]
+		data.Page = "home"
+		data.Img = defaultImgByLangTag[l.Tag]
+
+		if l.Default {
+			data.URL = "/"
+		} else {
+			data.URL = "/" + l.Tag
+		}
 
 		// alternate links
 		data.AlternateLinks = make([]*AlternateLink, 0, len(cFileData.Langs))
@@ -434,7 +560,21 @@ func Build(bc BuildConfig) error {
 			}
 
 			data.Title = fmt.Sprintf("%v - %v", p.Title, cFileData.Title)
-			data.URL = "/posts/" + p.Slug
+			data.Description = p.Excerpt
+			data.Page = "post"
+			data.Post = p
+
+			if l.Default {
+				data.URL = "/posts/" + p.Slug
+			} else {
+				data.URL = "/" + l.Tag + "/posts/" + p.Slug
+			}
+
+			if p.Img != nil {
+				data.Img = p.Img
+			} else {
+				data.Img = defaultImgByLangTag[l.Tag]
+			}
 
 			// alternate links
 			data.AlternateLinks = make([]*AlternateLink, 0, len(cFileData.Langs)-1)
@@ -455,8 +595,6 @@ func Build(bc BuildConfig) error {
 					URL:  fmt.Sprintf("/%v/posts/%v", l2.Tag, p.Slug),
 				})
 			}
-
-			data.Post = p
 
 			postPageOutPathFile, err := os.Create(path.Join(postDirPath, "index.html"))
 			if err != nil {
