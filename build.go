@@ -1,6 +1,7 @@
 package egen
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -13,11 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/efreitasn/egen/htmlp"
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/tdewolff/minify"
 	"github.com/tdewolff/minify/css"
-	"github.com/yosssi/gohtml"
 	"gopkg.in/yaml.v2"
 )
 
@@ -553,11 +554,18 @@ func Build(bc BuildConfig) error {
 			return err
 		}
 
-		err = homePageTemplate.ExecuteTemplate(gohtml.NewWriter(homePageOutPathFile), "index", data)
+		var buff bytes.Buffer
+		err = homePageTemplate.ExecuteTemplate(&buff, "index", data)
 		if err != nil {
 			homePageOutPathFile.Close()
 			return err
 		}
+
+		htmlPretty, err := htmlp.Pretty(buff.Bytes())
+		if err != nil {
+			return err
+		}
+		homePageOutPathFile.Write(htmlPretty)
 
 		homePageOutPathFile.Close()
 
@@ -617,11 +625,18 @@ func Build(bc BuildConfig) error {
 				return err
 			}
 
-			err = postPageTemplate.ExecuteTemplate(gohtml.NewWriter(postPageOutPathFile), "index", data)
+			var buff bytes.Buffer
+			err = postPageTemplate.ExecuteTemplate(&buff, "index", data)
 			if err != nil {
 				postPageOutPathFile.Close()
 				return err
 			}
+
+			htmlPretty, err := htmlp.Pretty(buff.Bytes())
+			if err != nil {
+				return err
+			}
+			postPageOutPathFile.Write(htmlPretty)
 
 			postPageOutPathFile.Close()
 		}
