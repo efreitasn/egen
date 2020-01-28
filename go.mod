@@ -3,6 +3,7 @@ module github.com/efreitasn/egen
 go 1.13
 
 require (
+	github.com/alecthomas/chroma v0.7.1
 	github.com/gomarkdown/markdown v0.0.0-20200112043221-ec51d717629d
 	github.com/tdewolff/minify v2.3.6+incompatible
 	github.com/tdewolff/parse v2.3.4+incompatible // indirect

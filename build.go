@@ -6,16 +6,23 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	chromaHTML "github.com/alecthomas/chroma/formatters/html"
+	"github.com/alecthomas/chroma/lexers"
+	"github.com/alecthomas/chroma/styles"
 	"github.com/efreitasn/egen/htmlp"
 	"github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/ast"
+	markdownHTML "github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/tdewolff/minify"
 	"github.com/tdewolff/minify/css"
@@ -23,6 +30,8 @@ import (
 )
 
 var configFilename = "egen.yaml"
+var mdCodeBlockInfoRegExp = regexp.MustCompile("^((?:[a-z]|[0-9])+?)(?:{((?:\\[[0-9]{1,},[0-9]{1,}\\])(?:(?:,\\[[0-9]{1,},[0-9]{1,}\\])+)?)})?$")
+var mdCodeBlockInfoHLinesRegExp = regexp.MustCompile("\\[([0-9]{1,}),([0-9]{1,})\\]")
 var postContentRegExp = regexp.MustCompile("(?s)^---\n(.*?)\n---(.*)")
 var htmlFilenameRegExp = regexp.MustCompile(".*\\.html")
 var indexHTML = `
@@ -68,6 +77,7 @@ var indexHTML = `
   	<link rel="alternate" hreflang="{{ .Lang.Tag }}" href="{{ relToAbsLink .URL }}">
 	{{- end }}
   {{ template "head" . }}
+	<link rel="stylesheet" href="{{ staticLink "chroma.css" }}">
 </head>
 <body>
   {{ template "content" . }}
@@ -221,8 +231,23 @@ func Build(bc BuildConfig) error {
 	}
 
 	// static
+
 	staticPath := path.Join(bc.InPath, "static")
 	staticPathOut := path.Join(bc.OutPath, "static")
+
+	chromaStyleFilePath := path.Join(staticPath, "chroma.css")
+	chromaStyleFile, err := os.Create(chromaStyleFilePath)
+	if err != nil {
+		return err
+	}
+
+	chromaStyle := styles.Get("swapoff")
+	f := chromaHTML.New()
+	err = f.WriteCSS(chromaStyleFile, chromaStyle)
+	if err != nil {
+		return err
+	}
+
 	var staticFilePaths map[string]string
 
 	if _, err := os.Stat(staticPath); !os.IsNotExist(err) {
@@ -235,6 +260,11 @@ func Build(bc BuildConfig) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	err = os.Remove(chromaStyleFilePath)
+	if err != nil {
+		return err
 	}
 
 	// img
@@ -389,7 +419,71 @@ func Build(bc BuildConfig) error {
 
 			// markdown
 			mdParser := parser.New()
-			p.Content = template.HTML(string(markdown.ToHTML(postContentMD, mdParser, nil)))
+			renderer := markdownHTML.NewRenderer(markdownHTML.RendererOptions{
+				RenderNodeHook: func(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus, bool) {
+					if cb, ok := node.(*ast.CodeBlock); ok {
+						if !mdCodeBlockInfoRegExp.Match(cb.Info) {
+							return ast.GoToNext, true
+						}
+
+						cbInfoMatches := mdCodeBlockInfoRegExp.FindStringSubmatch(string(cb.Info))
+						lang := cbInfoMatches[1]
+
+						hLines := make([][2]int, 0)
+
+						if cbInfoMatches[2] != "" {
+							hLinesMatches := mdCodeBlockInfoHLinesRegExp.FindAllStringSubmatch(cbInfoMatches[2], -1)
+
+							for _, hLinesMatch := range hLinesMatches {
+								startLine, err := strconv.Atoi(hLinesMatch[1])
+								if err != nil {
+									return ast.GoToNext, true
+								}
+
+								endLine, err := strconv.Atoi(hLinesMatch[2])
+								if err != nil {
+									return ast.GoToNext, true
+								}
+
+								hLines = append(hLines, [2]int{
+									startLine,
+									endLine,
+								})
+							}
+						}
+
+						lexer := lexers.Get(lang)
+						if lexer == nil {
+							return ast.GoToNext, true
+						}
+
+						iterator, _ := lexer.Tokenise(nil, string(cb.Literal))
+						formatter := chromaHTML.New(
+							chromaHTML.WithClasses(true),
+							chromaHTML.WithLineNumbers(true),
+							chromaHTML.HighlightLines(hLines),
+						)
+
+						err := formatter.Format(w, chromaStyle, iterator)
+						if err != nil {
+							return ast.GoToNext, true
+						}
+
+						return ast.GoToNext, true
+					}
+
+					return ast.GoToNext, false
+				},
+			})
+			p.Content = template.HTML(
+				string(
+					bytes.ReplaceAll(
+						markdown.ToHTML(postContentMD, mdParser, renderer),
+						[]byte(`<pre`),
+						[]byte(`<pre data-htmlp-ignore`),
+					),
+				),
+			)
 
 			if postYAMLData.Feed {
 				if visiblePostsByLangTag[l.Tag] == nil {
