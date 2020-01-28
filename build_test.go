@@ -46,7 +46,7 @@ func TestBuild_ok(t *testing.T) {
 			}
 			// defer os.RemoveAll(buildOutPath)
 
-			compareDirsRec(t, test.bc.OutPath, test.expected)
+			compareDirsRec(t, test.expected, test.bc.OutPath)
 		})
 	}
 }
@@ -55,6 +55,17 @@ func compareDirsRec(t *testing.T, a, b string) {
 	aFilesDirs, err := ioutil.ReadDir(a)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
+	}
+
+	bFilesDirs, err := ioutil.ReadDir(b)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if len(aFilesDirs) > len(bFilesDirs) {
+		t.Fatalf("there are files in %v that don't exist in %v", a, b)
+	} else if len(aFilesDirs) < len(bFilesDirs) {
+		t.Fatalf("there are files in %v that don't exist in %v", b, a)
 	}
 
 	for _, aFileDirInfo := range aFilesDirs {

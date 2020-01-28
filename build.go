@@ -575,8 +575,7 @@ func Build(bc BuildConfig) error {
 			return err
 		}
 
-		// post page
-		for _, p := range visiblePostsByLangTag[l.Tag] {
+		doPost := func(p *Post) error {
 			postDirPath := path.Join(postsDirOutPath, p.Slug)
 			err = os.Mkdir(postDirPath, os.ModeDir|os.ModePerm)
 			if err != nil {
@@ -639,6 +638,23 @@ func Build(bc BuildConfig) error {
 			postPageOutPathFile.Write(htmlPretty)
 
 			postPageOutPathFile.Close()
+
+			return nil
+		}
+
+		// post page
+		for _, p := range visiblePostsByLangTag[l.Tag] {
+			err := doPost(p)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, p := range invisiblePostsByLangTag[l.Tag] {
+			err := doPost(p)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
