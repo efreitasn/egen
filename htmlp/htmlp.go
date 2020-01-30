@@ -78,6 +78,10 @@ func renderToken(t *html.Tokenizer, w *bytes.Buffer, depth int) error {
 		w.WriteString(strings.Repeat("  ", depth))
 		w.Write(t.Raw())
 		w.WriteString("\n")
+	case html.SelfClosingTagToken:
+		w.WriteString(strings.Repeat("  ", depth))
+		w.Write(t.Raw())
+		w.WriteString("\n")
 	case html.TextToken:
 		r := bytes.Trim(t.Raw(), " \n\t")
 
