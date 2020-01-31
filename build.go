@@ -417,12 +417,73 @@ func Build(bc BuildConfig) error {
 			mdProcessor := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions))
 			rootNode := mdProcessor.Parse(postContentMD)
 
+			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+				if node.Type == blackfriday.Image && entering {
+					oldParent := node.Parent
+
+					if oldParent.Type == blackfriday.Paragraph {
+						newParent := oldParent.Parent
+
+						// this should never happen
+						if newParent.Type == blackfriday.Paragraph {
+							node.Unlink()
+
+							return blackfriday.GoToNext
+						}
+
+						oldParentChildren := getChildren(oldParent)
+						nodeOldParentIndex := findIndex(node, oldParent)
+
+						var oldParentChildrenAfterNode []*blackfriday.Node
+						if nodeOldParentIndex+1 < len(oldParentChildren) {
+							oldParentChildrenAfterNode = oldParentChildren[nodeOldParentIndex+1 : len(oldParentChildren)]
+						}
+
+						if oldParent.Next == nil {
+							newParent.AppendChild(node)
+
+							if oldParentChildrenAfterNode != nil {
+								pNode := blackfriday.NewNode(blackfriday.Paragraph)
+
+								for _, c := range oldParentChildrenAfterNode {
+									pNode.AppendChild(c)
+								}
+								newParent.AppendChild(pNode)
+							}
+						} else {
+							oldParentNewParentIndex := findIndex(oldParent, newParent)
+							newParentChildren := getChildren(newParent)
+							newParentChildrenAfterOldParent := newParentChildren[oldParentNewParentIndex+1 : len(newParentChildren)]
+
+							newParent.AppendChild(node)
+
+							if oldParentChildrenAfterNode != nil {
+								pNode := blackfriday.NewNode(blackfriday.Paragraph)
+
+								for _, c := range oldParentChildrenAfterNode {
+									pNode.AppendChild(c)
+								}
+
+								newParent.AppendChild(pNode)
+							}
+
+							for _, c := range newParentChildrenAfterOldParent {
+								newParent.AppendChild(c)
+							}
+						}
+					}
+				}
+
+				return blackfriday.GoToNext
+			})
+
 			var htmlBuff bytes.Buffer
 
 			// TODO flags
 			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
 			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-				if node.Type == blackfriday.CodeBlock {
+				switch {
+				case node.Type == blackfriday.CodeBlock && entering:
 					if !mdCodeBlockInfoRegExp.Match(node.Info) {
 						return blackfriday.GoToNext
 					}
@@ -471,9 +532,34 @@ func Build(bc BuildConfig) error {
 					}
 
 					return blackfriday.GoToNext
-				}
+				case node.Type == blackfriday.Image && entering:
+					// the image element is only added if its alt
+					// attribute has been set.
+					if node.FirstChild != nil {
+						title := string(node.Title)
+						alt := string(node.FirstChild.Literal)
 
-				return r.RenderNode(&htmlBuff, node, entering)
+						src := string(node.LinkData.Destination)
+						if !strings.HasPrefix(src, "http://") && !strings.HasPrefix(src, "https://") {
+							src = "/static/" + staticFilePaths[src]
+						}
+
+						img := fmt.Sprintf(`<img src="%v" alt="%v">`, src, alt)
+						figcaption := ""
+
+						if title != "" {
+							figcaption = fmt.Sprintf("<figcaption>%v</figcaption>", title)
+						}
+
+						htmlBuff.WriteString(
+							fmt.Sprintf("<figure>%v%v</figure>", img, figcaption),
+						)
+					}
+
+					return blackfriday.SkipChildren
+				default:
+					return r.RenderNode(&htmlBuff, node, entering)
+				}
 			})
 
 			// markdown
@@ -837,4 +923,35 @@ func processFilesToDirRec(inDirPath, outDirPath string) (map[string]string, erro
 	}
 
 	return filePaths, nil
+}
+
+func findIndex(node *blackfriday.Node, parent *blackfriday.Node) int {
+	children := getChildren(parent)
+	if len(children) == 0 {
+		return -1
+	}
+
+	for i, c := range children {
+		if c == node {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func getChildren(n *blackfriday.Node) []*blackfriday.Node {
+	if n == nil || n.FirstChild == nil {
+		return nil
+	}
+
+	children := make([]*blackfriday.Node, 0)
+
+	c := n.FirstChild
+	for c != nil {
+		children = append(children, c)
+		c = c.Next
+	}
+
+	return children
 }
