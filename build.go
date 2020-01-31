@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -20,12 +19,9 @@ import (
 	"github.com/alecthomas/chroma/lexers"
 	"github.com/alecthomas/chroma/styles"
 	"github.com/efreitasn/egen/htmlp"
-	"github.com/gomarkdown/markdown"
-	"github.com/gomarkdown/markdown/ast"
-	markdownHTML "github.com/gomarkdown/markdown/html"
-	"github.com/gomarkdown/markdown/parser"
 	"github.com/tdewolff/minify"
 	"github.com/tdewolff/minify/css"
+	"gopkg.in/russross/blackfriday.v2"
 	"gopkg.in/yaml.v2"
 )
 
@@ -417,68 +413,74 @@ func Build(bc BuildConfig) error {
 				}
 			}
 
-			// markdown
-			mdParser := parser.New()
-			renderer := markdownHTML.NewRenderer(markdownHTML.RendererOptions{
-				RenderNodeHook: func(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus, bool) {
-					if cb, ok := node.(*ast.CodeBlock); ok {
-						if !mdCodeBlockInfoRegExp.Match(cb.Info) {
-							return ast.GoToNext, true
-						}
+			// TODO extensions
+			mdProcessor := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions))
+			rootNode := mdProcessor.Parse(postContentMD)
 
-						cbInfoMatches := mdCodeBlockInfoRegExp.FindStringSubmatch(string(cb.Info))
-						lang := cbInfoMatches[1]
+			var htmlBuff bytes.Buffer
 
-						hLines := make([][2]int, 0)
-
-						if cbInfoMatches[2] != "" {
-							hLinesMatches := mdCodeBlockInfoHLinesRegExp.FindAllStringSubmatch(cbInfoMatches[2], -1)
-
-							for _, hLinesMatch := range hLinesMatches {
-								startLine, err := strconv.Atoi(hLinesMatch[1])
-								if err != nil {
-									return ast.GoToNext, true
-								}
-
-								endLine, err := strconv.Atoi(hLinesMatch[2])
-								if err != nil {
-									return ast.GoToNext, true
-								}
-
-								hLines = append(hLines, [2]int{
-									startLine,
-									endLine,
-								})
-							}
-						}
-
-						lexer := lexers.Get(lang)
-						if lexer == nil {
-							return ast.GoToNext, true
-						}
-
-						iterator, _ := lexer.Tokenise(nil, string(cb.Literal))
-						formatter := chromaHTML.New(
-							chromaHTML.WithClasses(true),
-							chromaHTML.WithLineNumbers(true),
-							chromaHTML.HighlightLines(hLines),
-						)
-
-						err := formatter.Format(w, chromaStyle, iterator)
-						if err != nil {
-							return ast.GoToNext, true
-						}
-
-						return ast.GoToNext, true
+			// TODO flags
+			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
+			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+				if node.Type == blackfriday.CodeBlock {
+					if !mdCodeBlockInfoRegExp.Match(node.Info) {
+						return blackfriday.GoToNext
 					}
 
-					return ast.GoToNext, false
-				},
+					cbInfoMatches := mdCodeBlockInfoRegExp.FindStringSubmatch(string(node.Info))
+					lang := cbInfoMatches[1]
+
+					hLines := make([][2]int, 0)
+
+					if cbInfoMatches[2] != "" {
+						hLinesMatches := mdCodeBlockInfoHLinesRegExp.FindAllStringSubmatch(cbInfoMatches[2], -1)
+
+						for _, hLinesMatch := range hLinesMatches {
+							startLine, err := strconv.Atoi(hLinesMatch[1])
+							if err != nil {
+								return blackfriday.GoToNext
+							}
+
+							endLine, err := strconv.Atoi(hLinesMatch[2])
+							if err != nil {
+								return blackfriday.GoToNext
+							}
+
+							hLines = append(hLines, [2]int{
+								startLine,
+								endLine,
+							})
+						}
+					}
+
+					lexer := lexers.Get(lang)
+					if lexer == nil {
+						return blackfriday.GoToNext
+					}
+
+					iterator, _ := lexer.Tokenise(nil, string(node.Literal))
+					formatter := chromaHTML.New(
+						chromaHTML.WithClasses(true),
+						chromaHTML.WithLineNumbers(true),
+						chromaHTML.HighlightLines(hLines),
+					)
+
+					err := formatter.Format(&htmlBuff, chromaStyle, iterator)
+					if err != nil {
+						return blackfriday.GoToNext
+					}
+
+					return blackfriday.GoToNext
+				}
+
+				return r.RenderNode(&htmlBuff, node, entering)
 			})
+
+			// markdown
 			p.Content = template.HTML(
 				string(
 					bytes.ReplaceAll(
-						markdown.ToHTML(postContentMD, mdParser, renderer),
+						htmlBuff.Bytes(),
 						[]byte(`<pre`),
 						[]byte(`<pre data-htmlp-ignore`),
 					),
