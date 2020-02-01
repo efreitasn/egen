@@ -82,22 +82,6 @@ var indexHTML = `
 {{- end }}
 `
 
-type configFileDataTextByLang struct {
-	Lang string
-	Text string
-}
-
-type configFileData struct {
-	Title       string
-	Description []configFileDataTextByLang
-	ImgAlt      []configFileDataTextByLang `yaml:"imgAlt"`
-	URL         string
-	Img         string
-	Langs       []*Lang
-	Author      *Author
-	Keywords    map[string]map[string]string
-}
-
 // Author represents an author.
 type Author struct {
 	Name, Twitter string
@@ -111,8 +95,8 @@ type Lang struct {
 	Default bool
 }
 
-// TemplateDataImg represents the image of the current page/post.
-type TemplateDataImg struct {
+// Img represents the image of the current page/post.
+type Img struct {
 	Name   string
 	Alt    string
 	Width  int
@@ -128,7 +112,7 @@ type TemplateData struct {
 	Title       string
 	Description string
 	Author      *Author
-	Img         *TemplateDataImg
+	Img         *Img
 	// Posts is a list of posts that are visible (feed: true)
 	Posts []*Post
 	// it's equal to nil unless it's the post page
@@ -147,7 +131,7 @@ type Post struct {
 	Content        template.HTML
 	Slug           string
 	Excerpt        string
-	Img            *TemplateDataImg
+	Img            *Img
 	Keywords       []string
 	Date           time.Time
 	LastUpdateDate time.Time
@@ -186,31 +170,9 @@ type BuildConfig struct {
 // Build builds the blog.
 func Build(bc BuildConfig) error {
 	// config file
-	cFile, err := os.Open(path.Join(bc.InPath, configFilename))
+	configData, err := readConfigFile(bc.InPath)
 	if err != nil {
 		return err
-	}
-
-	var cFileData configFileData
-
-	err = yaml.NewDecoder(cFile).Decode(&cFileData)
-	if err != nil {
-		return err
-	}
-
-	var defaultLang *Lang
-
-	for _, lang := range cFileData.Langs {
-		if lang.Default {
-			defaultLang = lang
-			break
-		}
-	}
-
-	descriptionByLangTag := make(map[string]string, len(cFileData.Description))
-
-	for _, d := range cFileData.Description {
-		descriptionByLangTag[d.Lang] = d.Text
 	}
 
 	// deletes bc.OutPath if it already exists
@@ -227,7 +189,6 @@ func Build(bc BuildConfig) error {
 	}
 
 	// static
-
 	staticPath := path.Join(bc.InPath, "static")
 	staticPathOut := path.Join(bc.OutPath, "static")
 
@@ -261,25 +222,6 @@ func Build(bc BuildConfig) error {
 	err = os.Remove(chromaStyleFilePath)
 	if err != nil {
 		return err
-	}
-
-	// img
-	defaultImgByLangTag := make(map[string]*TemplateDataImg, len(cFileData.ImgAlt))
-
-	if cFileData.Img != "" {
-		defaultImgWidth, defaultImgHeight, err := imgDimensions(path.Join(staticPath, cFileData.Img))
-		if err != nil {
-			return err
-		}
-
-		for _, ia := range cFileData.ImgAlt {
-			defaultImgByLangTag[ia.Lang] = &TemplateDataImg{
-				Name:   cFileData.Img,
-				Alt:    ia.Text,
-				Width:  defaultImgWidth,
-				Height: defaultImgHeight,
-			}
-		}
 	}
 
 	// posts
@@ -325,7 +267,7 @@ func Build(bc BuildConfig) error {
 			}
 		}
 
-		var postImg *TemplateDataImg
+		var postImg *Img
 
 		if postYAMLData.Img != "" {
 			postImgWidth, postImgHeight, err := imgDimensions(path.Join(staticPath, postYAMLData.Img))
@@ -333,7 +275,7 @@ func Build(bc BuildConfig) error {
 				return err
 			}
 
-			postImg = &TemplateDataImg{
+			postImg = &Img{
 				Name:   postYAMLData.Img,
 				Width:  postImgWidth,
 				Height: postImgHeight,
@@ -341,7 +283,7 @@ func Build(bc BuildConfig) error {
 		}
 
 		// content_*.md files
-		for _, l := range cFileData.Langs {
+		for _, l := range configData.Langs {
 			var postURL string
 
 			if l.Default {
@@ -354,7 +296,7 @@ func Build(bc BuildConfig) error {
 			copy(keywords, postYAMLData.Keywords)
 
 			for i, keyword := range keywords {
-				kLangs, ok := cFileData.Keywords[keyword]
+				kLangs, ok := configData.Keywords[keyword]
 				if !ok {
 					continue
 				}
@@ -405,7 +347,7 @@ func Build(bc BuildConfig) error {
 			p.Excerpt = yamlData.Excerpt
 
 			if postImg != nil {
-				p.Img = &TemplateDataImg{
+				p.Img = &Img{
 					Name:   postImg.Name,
 					Width:  postImg.Width,
 					Height: postImg.Height,
@@ -616,10 +558,10 @@ func Build(bc BuildConfig) error {
 
 	funcs["relToAbsLink"] = func(link string) string {
 		if link == "/" {
-			return cFileData.URL
+			return configData.URL
 		}
 
-		return cFileData.URL + link
+		return configData.URL + link
 	}
 
 	// templates
@@ -683,11 +625,11 @@ func Build(bc BuildConfig) error {
 	)
 
 	// executing templates per lang
-	for _, l := range cFileData.Langs {
+	for _, l := range configData.Langs {
 		data := TemplateData{
 			Posts:  visiblePostsByLangTag[l.Tag],
 			Lang:   l,
-			Author: cFileData.Author,
+			Author: configData.Author,
 		}
 
 		langOutPath := bc.OutPath
@@ -700,10 +642,10 @@ func Build(bc BuildConfig) error {
 		}
 
 		// home page
-		data.Title = cFileData.Title
-		data.Description = descriptionByLangTag[l.Tag]
+		data.Title = configData.Title
+		data.Description = configData.Description[l.Tag]
 		data.Page = "home"
-		data.Img = defaultImgByLangTag[l.Tag]
+		data.Img = configData.defaultImgByLangTag[l.Tag]
 
 		if l.Default {
 			data.URL = "/"
@@ -712,15 +654,15 @@ func Build(bc BuildConfig) error {
 		}
 
 		// alternate links
-		data.AlternateLinks = make([]*AlternateLink, 0, len(cFileData.Langs))
+		data.AlternateLinks = make([]*AlternateLink, 0, len(configData.Langs))
 
 		// default lang is always the first
 		data.AlternateLinks = append(data.AlternateLinks, &AlternateLink{
 			URL:  "/",
-			Lang: defaultLang,
+			Lang: configData.defaultLang,
 		})
 
-		for _, l2 := range cFileData.Langs {
+		for _, l2 := range configData.Langs {
 			if l2.Default {
 				continue
 			}
@@ -764,7 +706,7 @@ func Build(bc BuildConfig) error {
 				return err
 			}
 
-			data.Title = fmt.Sprintf("%v - %v", p.Title, cFileData.Title)
+			data.Title = fmt.Sprintf("%v - %v", p.Title, configData.Title)
 			data.Description = p.Excerpt
 			data.Page = "post"
 			data.Post = p
@@ -778,19 +720,19 @@ func Build(bc BuildConfig) error {
 			if p.Img != nil {
 				data.Img = p.Img
 			} else {
-				data.Img = defaultImgByLangTag[l.Tag]
+				data.Img = configData.defaultImgByLangTag[l.Tag]
 			}
 
 			// alternate links
-			data.AlternateLinks = make([]*AlternateLink, 0, len(cFileData.Langs)-1)
+			data.AlternateLinks = make([]*AlternateLink, 0, len(configData.Langs)-1)
 
 			// default lang is always the first
 			data.AlternateLinks = append(data.AlternateLinks, &AlternateLink{
 				URL:  "/posts/" + p.Slug,
-				Lang: defaultLang,
+				Lang: configData.defaultLang,
 			})
 
-			for _, l2 := range cFileData.Langs {
+			for _, l2 := range configData.Langs {
 				if l2.Default {
 					continue
 				}
