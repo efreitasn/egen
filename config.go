@@ -8,6 +8,19 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var configFilename = "egen.yaml"
+
+// Author represents an author.
+type Author struct {
+	Name, Twitter string
+}
+
+// Img represents the image of the current page/post.
+type Img struct {
+	Path AssetRelPath
+	Alt  string
+}
+
 // Map of internationalized versions of a string.
 // Example: pt-BR -> foobar
 type i18nStrings map[string]string
@@ -17,7 +30,7 @@ type configFileData struct {
 	Description i18nStrings
 	ImgAlt      i18nStrings `yaml:"imgAlt"`
 	URL         string
-	Img         string
+	Img         AssetRelPath
 	Langs       []*Lang
 	Author      *Author
 	Keywords    map[string]i18nStrings
@@ -63,17 +76,10 @@ func readConfigFile(inPath string) (*config, error) {
 	c.defaultImgByLangTag = make(map[string]*Img, len(cFileData.ImgAlt))
 
 	if cFileData.Img != "" {
-		defaultImgWidth, defaultImgHeight, err := imgDimensions(path.Join(inPath, "static", cFileData.Img))
-		if err != nil {
-			return nil, err
-		}
-
 		for langTag, alt := range cFileData.ImgAlt {
 			c.defaultImgByLangTag[langTag] = &Img{
-				Name:   cFileData.Img,
-				Alt:    alt,
-				Width:  defaultImgWidth,
-				Height: defaultImgHeight,
+				Path: cFileData.Img,
+				Alt:  alt,
 			}
 		}
 	}

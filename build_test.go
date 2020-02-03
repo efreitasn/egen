@@ -21,6 +21,16 @@ func TestBuild_ok(t *testing.T) {
 			BuildConfig{
 				InPath:  path.Join(baseDir, "1", "in"),
 				OutPath: path.Join(baseDir, "1", "test_output"),
+				PreGATProc: func(gat *AssetsTreeNode) {
+					aaNode := gat.AddChild(FILENODE, "aa.txt")
+					aaNode.SetContent([]byte("aa"))
+				},
+				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
+					if postSlug == "third" {
+						zzNode := pwat.AddChild(FILENODE, "zz.txt")
+						zzNode.SetContent([]byte("zz"))
+					}
+				},
 				Funcs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
@@ -35,6 +45,25 @@ func TestBuild_ok(t *testing.T) {
 				},
 			},
 			path.Join(baseDir, "1", "out"),
+		},
+		{
+			BuildConfig{
+				InPath:  path.Join(baseDir, "2", "in"),
+				OutPath: path.Join(baseDir, "2", "test_output"),
+				Funcs: template.FuncMap{
+					"formatDateByLang": func(date time.Time, l *Lang) string {
+						switch l.Tag {
+						case "en":
+							return date.Format("01/02/2006")
+						case "pt-BR":
+							return date.Format("02/01/2006")
+						default:
+							return ""
+						}
+					},
+				},
+			},
+			path.Join(baseDir, "2", "out"),
 		},
 	}
 

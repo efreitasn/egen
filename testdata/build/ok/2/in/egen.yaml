@@ -3,18 +3,9 @@ description:
   en: A blog
   pt-BR: Um blog
 url: https://foo.bar
-img: /the-default-img.png
-imgAlt:
-  en: foo.bar's logo
-  pt-BR: logo do foo.bar
 author:
   name: John Doe
   twitter: johndoe
-keywords:
-  foo:
-    pt-BR: bar
-  key:
-    pt-BR: chave
 langs:
   - tag: en
     name: English
