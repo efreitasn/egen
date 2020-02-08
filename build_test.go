@@ -11,16 +11,18 @@ import (
 )
 
 func TestBuild_ok(t *testing.T) {
-	baseDir := path.Join("testdata", "build", "ok")
+	okDir := path.Join("testdata", "build", "ok")
+	errDir := path.Join("testdata", "build", "err")
 
 	tests := []struct {
-		bc       BuildConfig
-		expected string
+		bc        BuildConfig
+		nonNilErr bool
+		expected  string
 	}{
 		{
 			BuildConfig{
-				InPath:  path.Join(baseDir, "1", "in"),
-				OutPath: path.Join(baseDir, "1", "test_output"),
+				InPath:  path.Join(okDir, "1", "in"),
+				OutPath: path.Join(okDir, "1", "test_output"),
 				PreGATProc: func(gat *AssetsTreeNode) {
 					aaNode := gat.AddChild(FILENODE, "aa.txt")
 					aaNode.SetContent([]byte("aa"))
@@ -44,12 +46,13 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			path.Join(baseDir, "1", "out"),
+			false,
+			path.Join(okDir, "1", "out"),
 		},
 		{
 			BuildConfig{
-				InPath:  path.Join(baseDir, "2", "in"),
-				OutPath: path.Join(baseDir, "2", "test_output"),
+				InPath:  path.Join(okDir, "2", "in"),
+				OutPath: path.Join(okDir, "2", "test_output"),
 				Funcs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
@@ -63,14 +66,111 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			path.Join(baseDir, "2", "out"),
+			false,
+			path.Join(okDir, "2", "out"),
+		},
+		{
+			BuildConfig{
+				InPath:  path.Join(errDir, "1", "in"),
+				OutPath: path.Join(errDir, "1", "test_output"),
+				PreGATProc: func(gat *AssetsTreeNode) {
+					aaNode := gat.AddChild(FILENODE, "aa.txt")
+					aaNode.SetContent([]byte("aa"))
+				},
+				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
+					if postSlug == "third" {
+						zzNode := pwat.AddChild(FILENODE, "zz.txt")
+						zzNode.SetContent([]byte("zz"))
+					}
+				},
+				Funcs: template.FuncMap{
+					"formatDateByLang": func(date time.Time, l *Lang) string {
+						switch l.Tag {
+						case "en":
+							return date.Format("01/02/2006")
+						case "pt-BR":
+							return date.Format("02/01/2006")
+						default:
+							return ""
+						}
+					},
+				},
+			},
+			true,
+			path.Join(errDir, "1", "out"),
+		},
+		{
+			BuildConfig{
+				InPath:  path.Join(errDir, "2", "in"),
+				OutPath: path.Join(errDir, "2", "test_output"),
+				PreGATProc: func(gat *AssetsTreeNode) {
+					aaNode := gat.AddChild(FILENODE, "aa.txt")
+					aaNode.SetContent([]byte("aa"))
+				},
+				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
+					if postSlug == "third" {
+						zzNode := pwat.AddChild(FILENODE, "zz.txt")
+						zzNode.SetContent([]byte("zz"))
+					}
+				},
+				Funcs: template.FuncMap{
+					"formatDateByLang": func(date time.Time, l *Lang) string {
+						switch l.Tag {
+						case "en":
+							return date.Format("01/02/2006")
+						case "pt-BR":
+							return date.Format("02/01/2006")
+						default:
+							return ""
+						}
+					},
+				},
+			},
+			true,
+			path.Join(errDir, "2", "out"),
+		},
+		{
+			BuildConfig{
+				InPath:  path.Join(errDir, "3", "in"),
+				OutPath: path.Join(errDir, "3", "test_output"),
+				PreGATProc: func(gat *AssetsTreeNode) {
+					aaNode := gat.AddChild(FILENODE, "aa.txt")
+					aaNode.SetContent([]byte("aa"))
+				},
+				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
+					if postSlug == "third" {
+						zzNode := pwat.AddChild(FILENODE, "zz.txt")
+						zzNode.SetContent([]byte("zz"))
+					}
+				},
+				Funcs: template.FuncMap{
+					"formatDateByLang": func(date time.Time, l *Lang) string {
+						switch l.Tag {
+						case "en":
+							return date.Format("01/02/2006")
+						case "pt-BR":
+							return date.Format("02/01/2006")
+						default:
+							return ""
+						}
+					},
+				},
+			},
+			true,
+			path.Join(errDir, "3", "out"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.bc.InPath, func(t *testing.T) {
 			err := Build(test.bc)
-			if err != nil {
+			if test.nonNilErr {
+				if err == nil {
+					t.Fatal("expected an error")
+				}
+
+				return
+			} else if err != nil {
 				t.Fatalf("unexpected err: %v", err)
 			}
 			// defer os.RemoveAll(buildOutPath)

@@ -280,6 +280,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{
 				Flags: blackfriday.NofollowLinks | blackfriday.NoreferrerLinks,
 			})
+			var bfTraverseErr error
 			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 				switch {
 				case node.Type == blackfriday.CodeBlock && entering:
@@ -337,7 +338,17 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 					if node.FirstChild != nil {
 						title := string(node.Title)
 						alt := string(node.FirstChild.Literal)
-						src := generateAssetsLinkFn(bd.gat, p.pwat, p.Slug)(AssetRelPath(node.LinkData.Destination))
+
+						src, err := generateAssetsLinkFn(bd.gat, p.pwat, p.Slug)(AssetRelPath(node.LinkData.Destination))
+						if err != nil {
+							bfTraverseErr = fmt.Errorf(
+								"%v post: %v",
+								p.Slug,
+								err,
+							)
+
+							return blackfriday.Terminate
+						}
 
 						img := fmt.Sprintf(`<img src="%v" alt="%v">`, src, alt)
 						figcaption := ""
@@ -362,6 +373,9 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 					return r.RenderNode(&htmlBuff, node, entering)
 				}
 			})
+			if bfTraverseErr != nil {
+				return nil, nil, bfTraverseErr
+			}
 
 			// markdown
 			p.Content = template.HTML(

@@ -290,16 +290,16 @@ func generateAlternateLinks(preLangSegments, postLangSegments []string, langs []
 	return links
 }
 
-func generateAssetsLinkFn(gat, pwat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) string {
-	return func(assetPath AssetRelPath) string {
+func generateAssetsLinkFn(gat, pwat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) (string, error) {
+	return func(assetPath AssetRelPath) (string, error) {
 		if n, searchedInPWAT := findByRelPathInGATOrPWAT(gat, pwat, assetPath); n != nil {
 			if searchedInPWAT {
-				return path.Join("/assets", postSlug, strings.TrimPrefix(n.processedRelPath, pwat.Path+"/"))
+				return path.Join("/assets", postSlug, strings.TrimPrefix(n.processedRelPath, pwat.Path+"/")), nil
 			}
 
-			return path.Join("/assets", strings.TrimPrefix(n.processedRelPath, gat.Path+"/"))
+			return path.Join("/assets", strings.TrimPrefix(n.processedRelPath, gat.Path+"/")), nil
 		}
 
-		return ""
+		return "", fmt.Errorf("%v not found in either GAT or PWAT", assetPath)
 	}
 }
