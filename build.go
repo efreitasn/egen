@@ -97,6 +97,11 @@ func Build(bc BuildConfig) error {
 		bc.PreGATProc(gat)
 	}
 
+	err = bundleCSSFilesInAT(gat)
+	if err != nil {
+		return err
+	}
+
 	err = processAT(gat, assetsPathOut)
 	if err != nil {
 		return err

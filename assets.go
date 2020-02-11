@@ -297,6 +297,8 @@ func traverseRec(n *AssetsTreeNode, fn AssetsTreeNodeTraverseFn) (TraverseStatus
 	c := n.FirstChild
 
 	for c != nil {
+		cNext := c.Next
+
 		switch c.Type {
 		case DIRNODE:
 			status, err := traverseRec(c, fn)
@@ -317,7 +319,7 @@ func traverseRec(n *AssetsTreeNode, fn AssetsTreeNodeTraverseFn) (TraverseStatus
 			}
 		}
 
-		c = c.Next
+		c = cNext
 	}
 
 	return Next, nil
@@ -344,6 +346,43 @@ func findByRelPathInGATOrPWAT(gat, pwat *AssetsTreeNode, relPath AssetRelPath) (
 	}
 
 	return pwat.FindByRelPath(string(relPath)), true
+}
+
+var cssFilenameRegExp = regexp.MustCompile("^.*\\.css$")
+
+func bundleCSSFilesInAT(rootNode *AssetsTreeNode) error {
+	cssContent := make([]byte, 0)
+
+	err := rootNode.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
+		if n == rootNode {
+			return Next, nil
+		}
+
+		if n.Type == DIRNODE {
+			return SkipChildren, nil
+		}
+
+		if cssFilenameRegExp.MatchString(n.Name) {
+			cssFileContent, err := n.Content()
+			if err != nil {
+				return Terminate, err
+			}
+
+			cssContent = append(cssContent, cssFileContent...)
+
+			n.RemoveFromTree()
+		}
+
+		return Next, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	n := rootNode.AddChild(FILENODE, "style.css")
+	n.SetContent(cssContent)
+
+	return nil
 }
 
 // processAT process each node of a tree of assets rooted at rootNode and places the output

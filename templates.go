@@ -54,8 +54,12 @@ var indexHTML = `
 	{{ range .AlternateLinks -}}
   	<link rel="alternate" hreflang="{{ .Lang.Tag }}" href="{{ relToAbsLink .URL }}">
 	{{- end }}
-  {{ template "head" . }}
-	<link rel="stylesheet" href="{{ assetsLink "/chroma.css" }}">
+	{{ with $cssFile := assetsLink "/style.css" }}
+		{{ if $cssFile }}
+			<link rel="stylesheet" href="{{ $cssFile }}">
+		{{ end }}
+	{{ end }}
+	{{ template "head" . }}
 </head>
 <body>
   {{ template "content" . }}
