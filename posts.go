@@ -178,7 +178,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 			postContent, err := ioutil.ReadFile(postContentFilePath)
 			if err != nil {
 				if os.IsNotExist(err) {
-					return nil, nil, fmt.Errorf("%v for %v doesn't exist", postContentFilename, postSlug)
+					return nil, nil, fmt.Errorf("%v for %v post doesn't exist", postContentFilename, postSlug)
 				}
 
 				return nil, nil, err
