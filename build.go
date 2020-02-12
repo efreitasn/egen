@@ -2,6 +2,7 @@ package egen
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"os"
@@ -31,6 +32,14 @@ type buildData struct {
 
 // Build builds the blog.
 func Build(bc BuildConfig) error {
+	if bc.InPath == "" {
+		return errors.New("inPath not provided")
+	}
+
+	if bc.OutPath == "" {
+		return errors.New("outPath not provided")
+	}
+
 	// config file
 	c, err := readConfigFile(bc.InPath)
 	if err != nil {
