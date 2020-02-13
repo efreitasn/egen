@@ -462,6 +462,138 @@ func TestRemoveFromTree(t *testing.T) {
 	}
 }
 
+func TestRemoveFromTree_2(t *testing.T) {
+	/*
+		dir1
+			dir2
+				file1
+			dir3
+				file2
+			dir4
+				file3
+	*/
+	dir1 := &AssetsTreeNode{
+		Type: DIRNODE,
+		Name: "dir1",
+		Path: "dir1",
+	}
+
+	dir2 := &AssetsTreeNode{
+		Type:   DIRNODE,
+		Name:   "dir2",
+		Parent: dir1,
+		Path:   path.Join(dir1.Path, "dir2"),
+	}
+	dir1.FirstChild = dir2
+
+	file1 := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file1",
+		Parent: dir2,
+		Path:   path.Join(dir2.Path, "file1"),
+	}
+	dir2.FirstChild = file1
+
+	dir3 := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir3",
+		Parent:   dir1,
+		Path:     path.Join(dir1.Path, "dir3"),
+		Previous: dir2,
+	}
+	dir2.Next = dir3
+
+	file2 := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file2",
+		Parent: dir3,
+		Path:   path.Join(dir3.Path, "file2"),
+	}
+	dir3.FirstChild = file2
+
+	dir4 := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir4",
+		Parent:   dir1,
+		Path:     path.Join(dir1.Path, "dir4"),
+		Previous: dir3,
+	}
+	dir3.Next = dir4
+
+	file3 := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file3",
+		Parent: dir4,
+		Path:   path.Join(dir4.Path, "file3"),
+	}
+	dir4.FirstChild = file3
+
+	/*
+		AFTER REMOVAL:
+		dir1
+			dir2
+				file1
+			dir4
+				file3
+	*/
+	dir1AD := &AssetsTreeNode{
+		Type: DIRNODE,
+		Name: "dir1",
+		Path: "dir1",
+	}
+
+	dir2AD := &AssetsTreeNode{
+		Type:   DIRNODE,
+		Name:   "dir2",
+		Parent: dir1AD,
+		Path:   path.Join(dir1AD.Path, "dir2"),
+	}
+	dir1AD.FirstChild = dir2AD
+
+	file1AD := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file1",
+		Parent: dir2AD,
+		Path:   path.Join(dir2AD.Path, "file1"),
+	}
+	dir2AD.FirstChild = file1AD
+
+	dir4AD := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir4",
+		Parent:   dir1AD,
+		Path:     path.Join(dir1AD.Path, "dir4"),
+		Previous: dir2AD,
+	}
+	dir2AD.Next = dir4AD
+
+	file3AD := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file3",
+		Parent: dir4AD,
+		Path:   path.Join(dir4AD.Path, "file3"),
+	}
+	dir4AD.FirstChild = file3AD
+
+	dir3.RemoveFromTree()
+
+	if !reflect.DeepEqual(dir1, dir1AD) {
+		t.Error("trees are not equal")
+	}
+
+	if dir3.Parent != nil {
+		t.Errorf("parent should be nil")
+	}
+
+	if dir3.Next != nil {
+		t.Errorf("next should be nil")
+	}
+
+	if dir3.Previous != nil {
+		t.Errorf("previous should be nil")
+	}
+}
+
 func TestAddChild(t *testing.T) {
 	/*
 		dir1

@@ -190,13 +190,19 @@ func (n *AssetsTreeNode) RemoveFromTree() {
 		}
 	} else {
 		n.Previous.Next = n.Next
+
+		if n.Next != nil {
+			n.Next.Previous = n.Previous
+		}
 	}
 
-	n.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
-		n.Path = ""
+	if n.Type == DIRNODE {
+		n.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
+			n.Path = ""
 
-		return Next, nil
-	})
+			return Next, nil
+		})
+	}
 
 	n.Parent = nil
 	n.Previous = nil
