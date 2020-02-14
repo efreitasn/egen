@@ -116,6 +116,18 @@ func createBaseTemplateWithIncludes(bd buildData) (*template.Template, error) {
 		return d.Format(time.RFC3339)
 	}
 
+	funcs["getInvisiblePost"] = func(l *Lang, slug string) *Post {
+		if posts := bd.invisiblePostsByLangTag[l.Tag]; posts != nil {
+			for _, p := range posts {
+				if p.Slug == slug {
+					return p
+				}
+			}
+		}
+
+		return nil
+	}
+
 	funcs["assetsLink"] = generateAssetsLinkFn(bd.gat, nil, "")
 
 	funcs["postLinkBySlugAndLang"] = func(slug string, l *Lang) string {

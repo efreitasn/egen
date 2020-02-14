@@ -24,10 +24,12 @@ type BuildConfig struct {
 
 // buildData is the data used by functions called by build.
 type buildData struct {
-	bc          *BuildConfig
-	c           *config
-	gat         *AssetsTreeNode
-	chromaStyle *chroma.Style
+	bc                      *BuildConfig
+	c                       *config
+	gat                     *AssetsTreeNode
+	chromaStyle             *chroma.Style
+	visiblePostsByLangTag   map[string][]*Post
+	invisiblePostsByLangTag map[string][]*Post
 }
 
 // Build builds the blog.
@@ -116,6 +118,15 @@ func Build(bc BuildConfig) error {
 		return err
 	}
 
+	// posts
+	visiblePostsByLangTag, invisiblePostsByLangTag, err := generatePostsLists(bd)
+	if err != nil {
+		return err
+	}
+
+	bd.visiblePostsByLangTag = visiblePostsByLangTag
+	bd.invisiblePostsByLangTag = invisiblePostsByLangTag
+
 	// base template
 	baseTemplate, err := createBaseTemplateWithIncludes(bd)
 	if err != nil {
@@ -130,12 +141,6 @@ func Build(bc BuildConfig) error {
 
 	// post page
 	postPageTemplate, err := createPageTemplate(bd, baseTemplate, "post")
-	if err != nil {
-		return err
-	}
-
-	// posts
-	visiblePostsByLangTag, invisiblePostsByLangTag, err := generatePostsLists(bd)
 	if err != nil {
 		return err
 	}
