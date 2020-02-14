@@ -202,6 +202,10 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 			p.Excerpt = yamlData.Excerpt
 
 			if postYAMLData.Img != "" {
+				if yamlData.ImgAlt == "" {
+					return nil, nil, fmt.Errorf("img alt in %v for %v post not provided", l.Tag, p.Slug)
+				}
+
 				p.Img = &Img{
 					Path: postYAMLData.Img,
 					Alt:  yamlData.ImgAlt,

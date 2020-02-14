@@ -63,24 +63,29 @@ func readConfigFile(inPath string) (*config, error) {
 
 	var c config
 
-	// default lang
-	for _, lang := range cFileData.Langs {
-		if lang.Default {
-			c.defaultLang = lang
-			break
-		}
-	}
-
 	// default img
 	c.configFileData = cFileData
 	c.defaultImgByLangTag = make(map[string]*Img, len(cFileData.ImgAlt))
 
-	if cFileData.Img != "" {
-		for langTag, alt := range cFileData.ImgAlt {
-			c.defaultImgByLangTag[langTag] = &Img{
-				Path: cFileData.Img,
-				Alt:  alt,
+	// default lang
+	for _, lang := range cFileData.Langs {
+		if cFileData.Description[lang.Tag] == "" {
+			return nil, fmt.Errorf("description in %v not provided", lang.Tag)
+		}
+
+		if cFileData.Img != "" {
+			if cFileData.ImgAlt[lang.Tag] == "" {
+				return nil, fmt.Errorf("alt for default image in %v not provided", lang.Tag)
 			}
+
+			c.defaultImgByLangTag[lang.Tag] = &Img{
+				Path: cFileData.Img,
+				Alt:  cFileData.ImgAlt[lang.Tag],
+			}
+		}
+
+		if lang.Default {
+			c.defaultLang = lang
 		}
 	}
 
