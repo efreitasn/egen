@@ -281,9 +281,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 
 			var htmlBuff bytes.Buffer
 
-			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{
-				Flags: blackfriday.NofollowLinks | blackfriday.NoreferrerLinks,
-			})
+			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
 			var bfTraverseErr error
 			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 				switch {
