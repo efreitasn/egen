@@ -126,6 +126,14 @@ func createBaseTemplateWithIncludes(bd buildData) (*template.Template, error) {
 		return fmt.Sprintf("/%v/posts/%v", l.Tag, slug)
 	}
 
+	funcs["homeLinkByLang"] = func(l *Lang) string {
+		if l.Default {
+			return fmt.Sprintf("/")
+		}
+
+		return fmt.Sprintf("/%v", l.Tag)
+	}
+
 	funcs["relToAbsLink"] = func(link string) string {
 		if link == "/" {
 			return bd.c.URL
