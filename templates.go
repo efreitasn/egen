@@ -119,6 +119,10 @@ func createBaseTemplateWithIncludes(bd buildData) (*template.Template, error) {
 	funcs["assetsLink"] = generateAssetsLinkFn(bd.gat, nil, "")
 
 	funcs["postLinkBySlugAndLang"] = func(slug string, l *Lang) string {
+		if l.Default {
+			return fmt.Sprintf("/posts/%v", slug)
+		}
+
 		return fmt.Sprintf("/%v/posts/%v", l.Tag, slug)
 	}
 
