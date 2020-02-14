@@ -326,7 +326,6 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 					iterator, _ := lexer.Tokenise(nil, string(node.Literal))
 					formatter := chromaHTML.New(
 						chromaHTML.WithClasses(true),
-						chromaHTML.WithLineNumbers(true),
 						chromaHTML.HighlightLines(hLines),
 					)
 
