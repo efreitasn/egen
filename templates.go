@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -153,6 +154,17 @@ func createBaseTemplateWithIncludes(bd buildData) (*template.Template, error) {
 		}
 
 		return bd.c.URL + link
+	}
+
+	funcs["sortPostsByDateDesc"] = func(posts []*Post) []*Post {
+		sorted := make([]*Post, len(posts))
+		copy(sorted, posts)
+
+		sort.SliceStable(sorted, func(i, j int) bool {
+			return sorted[i].Date.After(sorted[j].Date)
+		})
+
+		return sorted
 	}
 
 	baseTemplate := template.Must(template.New("base").Funcs(funcs).Parse(indexHTML))
