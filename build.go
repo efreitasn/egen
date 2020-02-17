@@ -16,20 +16,8 @@ import (
 // BuildConfig is the config used to build a blog.
 type BuildConfig struct {
 	InPath, OutPath string
-	Funcs           template.FuncMap
-	ChromaStyles    *chroma.Style
-	PreGATProc      func(gat *AssetsTreeNode)
-	PrePWATProc     func(postSlug string, pwat *AssetsTreeNode)
-}
-
-// buildData is the data used by functions called by build.
-type buildData struct {
-	bc                      *BuildConfig
-	c                       *config
-	gat                     *AssetsTreeNode
-	chromaStyle             *chroma.Style
-	visiblePostsByLangTag   map[string][]*Post
-	invisiblePostsByLangTag map[string][]*Post
+	TemplateFuncs   template.FuncMap
+	ChromaStyle     *chroma.Style
 }
 
 // Build builds the blog.
@@ -40,12 +28,6 @@ func Build(bc BuildConfig) error {
 
 	if bc.OutPath == "" {
 		return errors.New("outPath not provided")
-	}
-
-	// config file
-	c, err := readConfigFile(bc.InPath)
-	if err != nil {
-		return err
 	}
 
 	// deletes bc.OutPath if it already exists
@@ -61,20 +43,19 @@ func Build(bc BuildConfig) error {
 	}
 
 	// creates bc.OutPath
-	err = os.Mkdir(bc.OutPath, os.ModeDir|os.ModePerm)
+	err := os.Mkdir(bc.OutPath, os.ModeDir|os.ModePerm)
 	if err != nil {
 		return err
 	}
 
-	// assets
-	assetsPath := path.Join(bc.InPath, "assets")
-	assetsPathOut := path.Join(bc.OutPath, "assets")
-
-	err = os.Mkdir(assetsPathOut, os.ModeDir|os.ModePerm)
+	// config file
+	c, err := readConfigFile(bc.InPath)
 	if err != nil {
-		return fmt.Errorf("creating %v: %v", assetsPathOut, err)
+		return err
 	}
 
+	// assets in
+	assetsPath := path.Join(bc.InPath, "assets")
 	gat, err := generateAssetsTree(assetsPath, nil)
 	if err != nil {
 		return fmt.Errorf("reading %v: %v", assetsPath, err)
@@ -83,7 +64,7 @@ func Build(bc BuildConfig) error {
 	// chroma styles
 	var chromaStylesBuff bytes.Buffer
 
-	chromaStyle := bc.ChromaStyles
+	chromaStyle := bc.ChromaStyle
 	if chromaStyle == nil {
 		chromaStyle = styles.Get("swapoff")
 	}
@@ -95,52 +76,59 @@ func Build(bc BuildConfig) error {
 	chromaNode := gat.AddChild(FILENODE, "chroma.css")
 	chromaNode.SetContent(chromaStylesBuff.Bytes())
 
-	// build data
-	bd := buildData{
-		bc:          &bc,
-		c:           c,
-		gat:         gat,
-		chromaStyle: chromaStyle,
+	// assets out
+	assetsOutPath := path.Join(bc.OutPath, "assets")
+
+	err = os.Mkdir(assetsOutPath, os.ModeDir|os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("creating %v: %v", assetsOutPath, err)
 	}
 
-	// process assets
-	if bc.PreGATProc != nil {
-		bc.PreGATProc(gat)
-	}
-
+	// process gat
 	err = bundleCSSFilesInAT(gat)
 	if err != nil {
 		return err
 	}
 
-	err = processAT(gat, assetsPathOut)
+	err = processAT(gat, assetsOutPath)
 	if err != nil {
 		return err
 	}
 
 	// posts
-	visiblePostsByLangTag, invisiblePostsByLangTag, err := generatePostsLists(bd)
+	allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag, err := generatePostsLists(
+		gat,
+		path.Join(bc.InPath, "posts"),
+		c.Langs,
+		assetsOutPath,
+		chromaStyle,
+	)
 	if err != nil {
 		return err
 	}
-
-	bd.visiblePostsByLangTag = visiblePostsByLangTag
-	bd.invisiblePostsByLangTag = invisiblePostsByLangTag
 
 	// base template
-	baseTemplate, err := createBaseTemplateWithIncludes(bd)
+	baseTemplate, err := createBaseTemplateWithIncludes(
+		bc.TemplateFuncs,
+		path.Join(bc.InPath, "includes"),
+		invisiblePostsByLangTag,
+		gat,
+		c.URL,
+	)
 	if err != nil {
 		return err
 	}
 
+	pagesInPath := path.Join(bc.InPath, "pages")
+
 	// home page
-	homePageTemplate, err := createPageTemplate(bd, baseTemplate, "home")
+	homePageTemplate, err := createPageTemplate(pagesInPath, baseTemplate, "home")
 	if err != nil {
 		return err
 	}
 
 	// post page
-	postPageTemplate, err := createPageTemplate(bd, baseTemplate, "post")
+	postPageTemplate, err := createPageTemplate(pagesInPath, baseTemplate, "post")
 	if err != nil {
 		return err
 	}
@@ -189,14 +177,45 @@ func Build(bc BuildConfig) error {
 				return err
 			}
 
-			err := executePostTemplateForEachPost(bd, postsDirOutPath, postPageTemplate, l, visiblePostsByLangTag[l.Tag])
-			if err != nil {
-				return err
-			}
+			for _, p := range allPostsByLangTag[l.Tag] {
+				postDirPath := path.Join(postsDirOutPath, p.Slug)
+				err := os.Mkdir(postDirPath, os.ModeDir|os.ModePerm)
+				if err != nil {
+					return err
+				}
 
-			err = executePostTemplateForEachPost(bd, postsDirOutPath, postPageTemplate, l, invisiblePostsByLangTag[l.Tag])
-			if err != nil {
-				return err
+				data := TemplateData{
+					Title:       fmt.Sprintf("%v - %v", p.Title, c.Title),
+					Description: p.Excerpt,
+					Page:        "post",
+					Post:        p,
+					Lang:        l,
+					Author:      c.Author,
+				}
+
+				if l.Default {
+					data.URL = "/posts/" + p.Slug
+				} else {
+					data.URL = "/" + l.Tag + "/posts/" + p.Slug
+				}
+
+				if p.Img != nil {
+					data.Img = p.Img
+				} else {
+					data.Img = c.defaultImgByLangTag[l.Tag]
+				}
+
+				// alternate links
+				data.AlternateLinks = generateAlternateLinks(nil, []string{"posts", p.Slug}, c.Langs)
+
+				postPageTemplate.Funcs(map[string]interface{}{
+					"assetsLink": generateAssetsLinkFn(gat, p.pat, p.Slug),
+				})
+
+				err = executePrettifyAndWriteTemplate(postPageTemplate, data, path.Join(postDirPath, "index.html"))
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

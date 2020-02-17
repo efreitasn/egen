@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/chroma"
 	chromaHTML "github.com/alecthomas/chroma/formatters/html"
 	"github.com/alecthomas/chroma/lexers"
 	"gopkg.in/russross/blackfriday.v2"
@@ -36,15 +37,14 @@ type Post struct {
 	Slug           string
 	Excerpt        string
 	Img            *Img
-	Keywords       []string
 	Date           time.Time
 	LastUpdateDate time.Time
 	Lang           *Lang
 	// relative
 	URL string
-	// pwat is a tree composed of any files in the post's path
+	// pat is a tree composed of any files in the post's path
 	// whose name doesn't match any item in nonPostAssetsRxs.
-	pwat *AssetsTreeNode
+	pat *AssetsTreeNode
 }
 
 type postYAMLFrontMatter struct {
@@ -54,20 +54,25 @@ type postYAMLFrontMatter struct {
 }
 
 type postYAMLDataFileContent struct {
-	Keywords       []string `yaml:"keywords"`
-	Feed           bool     `yaml:"feed"`
-	Date           string   `yaml:"date"`
-	LastUpdateDate string   `yaml:"lastUpdateDate"`
+	Feed           bool   `yaml:"feed"`
+	Date           string `yaml:"date"`
+	LastUpdateDate string `yaml:"lastUpdateDate"`
 	Img            AssetRelPath
 }
 
-func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLangTag map[string][]*Post, err error) {
-	postsPath := path.Join(bd.bc.InPath, "posts")
-
-	postsFileInfos, err := ioutil.ReadDir(postsPath)
+func generatePostsLists(
+	gat *AssetsTreeNode,
+	postsInPath string,
+	langs []*Lang,
+	assetsOutPath string,
+	chromaStyle *chroma.Style,
+) (allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag map[string][]*Post, err error) {
+	postsFileInfos, err := ioutil.ReadDir(postsInPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+
+	allPostsByLangTag = make(map[string][]*Post)
 	visiblePostsByLangTag = make(map[string][]*Post)
 	invisiblePostsByLangTag = make(map[string][]*Post)
 
@@ -77,21 +82,17 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 		}
 
 		postSlug := postsFileInfo.Name()
-		postDirPath := path.Join(postsPath, postSlug)
+		postDirPath := path.Join(postsInPath, postSlug)
 
-		pwat, err := generateAssetsTree(postDirPath, nonPostAssetsRxs)
+		pat, err := generateAssetsTree(postDirPath, nonPostAssetsRxs)
 		if err != nil {
-			return nil, nil, fmt.Errorf("generating pwat for %v: %v", postSlug, err)
-		}
-
-		if bd.bc.PrePWATProc != nil {
-			bd.bc.PrePWATProc(postSlug, pwat)
+			return nil, nil, nil, fmt.Errorf("generating pat for %v: %v", postSlug, err)
 		}
 
 		// this condition exists so that assetsPathOut is only created if the post
 		// has at least one asset.
-		if pwat.FirstChild != nil {
-			assetsPathOut := path.Join(bd.bc.OutPath, "assets", postSlug)
+		if pat.FirstChild != nil {
+			assetsPathOut := path.Join(assetsOutPath, postSlug)
 
 			// it's checked whether assetsPathOut already exists because it could've
 			// been already created when generating the global assets tree (GAT) if
@@ -100,33 +101,33 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 				if os.IsNotExist(err) {
 					err := os.Mkdir(assetsPathOut, os.ModeDir|os.ModePerm)
 					if err != nil {
-						return nil, nil, fmt.Errorf("creating %v: %v", assetsPathOut, err)
+						return nil, nil, nil, fmt.Errorf("creating %v: %v", assetsPathOut, err)
 					}
 				} else {
-					return nil, nil, err
+					return nil, nil, nil, err
 				}
 			}
 
-			if err = processAT(pwat, assetsPathOut); err != nil {
-				return nil, nil, fmt.Errorf("processing pwat: %v", err)
+			if err = processAT(pat, assetsPathOut); err != nil {
+				return nil, nil, nil, fmt.Errorf("processing pat: %v", err)
 			}
 		}
 
 		// data.yaml file
 		postYAMLDataFile, err := os.Open(path.Join(postDirPath, "data.yaml"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("opening %v data.yaml: %v", postSlug, err)
+			return nil, nil, nil, fmt.Errorf("opening %v data.yaml: %v", postSlug, err)
 		}
 
 		var postYAMLData postYAMLDataFileContent
 		err = yaml.NewDecoder(postYAMLDataFile).Decode(&postYAMLData)
 		if err != nil {
-			return nil, nil, fmt.Errorf("decoding %v data.yaml: %v", postSlug, err)
+			return nil, nil, nil, fmt.Errorf("decoding %v data.yaml: %v", postSlug, err)
 		}
 
 		postDate, err := time.Parse(time.RFC3339, postYAMLData.Date)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parsing %v data.yaml date: %v", postSlug, err)
+			return nil, nil, nil, fmt.Errorf("parsing %v data.yaml date: %v", postSlug, err)
 		}
 
 		var postLastUpdateDate time.Time
@@ -134,12 +135,12 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 		if postYAMLData.LastUpdateDate != "" {
 			postLastUpdateDate, err = time.Parse(time.RFC3339, postYAMLData.LastUpdateDate)
 			if err != nil {
-				return nil, nil, fmt.Errorf("parsing %v data.yaml lastUpdateDate: %v", postSlug, err)
+				return nil, nil, nil, fmt.Errorf("parsing %v data.yaml lastUpdateDate: %v", postSlug, err)
 			}
 		}
 
 		// content_*.md files
-		for _, l := range bd.c.Langs {
+		for _, l := range langs {
 			var postURL string
 
 			if l.Default {
@@ -148,29 +149,13 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 				postURL = fmt.Sprintf("/%v/posts/%v", l.Tag, postSlug)
 			}
 
-			keywords := make([]string, 0, len(postYAMLData.Keywords))
-
-			for _, keyword := range postYAMLData.Keywords {
-				kLangs, ok := bd.c.Keywords[keyword]
-				if ok {
-					if k, ok := kLangs[l.Tag]; ok {
-						keywords = append(keywords, k)
-
-						continue
-					}
-				}
-
-				keywords = append(keywords, keyword)
-			}
-
 			p := Post{
 				Slug:           postSlug,
-				Keywords:       keywords,
 				Date:           postDate,
 				LastUpdateDate: postLastUpdateDate,
 				Lang:           l,
 				URL:            postURL,
-				pwat:           pwat,
+				pat:            pat,
 			}
 
 			postContentFilename := "content_" + l.Tag + ".md"
@@ -178,13 +163,13 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 			postContent, err := ioutil.ReadFile(postContentFilePath)
 			if err != nil {
 				if os.IsNotExist(err) {
-					return nil, nil, fmt.Errorf("%v for %v post doesn't exist", postContentFilename, postSlug)
+					return nil, nil, nil, fmt.Errorf("%v for %v post doesn't exist", postContentFilename, postSlug)
 				}
 
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			if !postContentRegExp.Match(postContent) {
-				return nil, nil, fmt.Errorf("post content at %v is invalid", postContentFilePath)
+				return nil, nil, nil, fmt.Errorf("post content at %v is invalid", postContentFilePath)
 			}
 
 			matchesIndexes := postContentRegExp.FindSubmatchIndex(postContent)
@@ -195,7 +180,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 			var yamlData postYAMLFrontMatter
 			err = yaml.Unmarshal(postContentYAML, &yamlData)
 			if err != nil {
-				return nil, nil, fmt.Errorf("parsing YAML content of %v: %v", postContentFilePath, err)
+				return nil, nil, nil, fmt.Errorf("parsing YAML content of %v: %v", postContentFilePath, err)
 			}
 
 			p.Title = yamlData.Title
@@ -203,7 +188,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 
 			if postYAMLData.Img != "" {
 				if yamlData.ImgAlt == "" {
-					return nil, nil, fmt.Errorf("img alt in %v for %v post not provided", l.Tag, p.Slug)
+					return nil, nil, nil, fmt.Errorf("img alt in %v for %v post not provided", l.Tag, p.Slug)
 				}
 
 				p.Img = &Img{
@@ -327,7 +312,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 						chromaHTML.HighlightLines(hLines),
 					)
 
-					err := formatter.Format(&htmlBuff, bd.chromaStyle, iterator)
+					err := formatter.Format(&htmlBuff, chromaStyle, iterator)
 					if err != nil {
 						return blackfriday.GoToNext
 					}
@@ -340,7 +325,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 						title := string(node.Title)
 						alt := string(node.FirstChild.Literal)
 
-						src, err := generateAssetsLinkFn(bd.gat, p.pwat, p.Slug)(AssetRelPath(node.LinkData.Destination))
+						src, err := generateAssetsLinkFn(gat, p.pat, p.Slug)(AssetRelPath(node.LinkData.Destination))
 						if err != nil {
 							bfTraverseErr = fmt.Errorf(
 								"%v post: %v",
@@ -375,7 +360,7 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 				}
 			})
 			if bfTraverseErr != nil {
-				return nil, nil, bfTraverseErr
+				return nil, nil, nil, bfTraverseErr
 			}
 
 			// markdown
@@ -388,6 +373,12 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 					),
 				),
 			)
+
+			if allPostsByLangTag[l.Tag] == nil {
+				allPostsByLangTag[l.Tag] = make([]*Post, 0, 1)
+			}
+
+			allPostsByLangTag[l.Tag] = append(allPostsByLangTag[l.Tag], &p)
 
 			if postYAMLData.Feed {
 				if visiblePostsByLangTag[l.Tag] == nil {
@@ -405,5 +396,5 @@ func generatePostsLists(bd buildData) (visiblePostsByLangTag, invisiblePostsByLa
 		}
 	}
 
-	return visiblePostsByLangTag, invisiblePostsByLangTag, nil
+	return allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag, nil
 }

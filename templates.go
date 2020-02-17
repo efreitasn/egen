@@ -96,82 +96,79 @@ type TemplateData struct {
 	Img         *Img
 	// Posts is a list of posts that are visible (feed: true)
 	Posts []*Post
-	// it's equal to nil unless it's the post page
+	// Post is equal to nil unless page == 'post'
 	Post *Post
 	Lang *Lang
-	// relative
+	// URL is a relative URL.
 	URL string
 	// AlternateLinks is a list of alternate links to be used in meta tags.
-	// It also includes the current link.
+	// It also includes the a link for the current page in the current language.
 	AlternateLinks []*AlternateLink
 }
 
-func createBaseTemplateWithIncludes(bd buildData) (*template.Template, error) {
+func createBaseTemplateWithIncludes(
+	templateFuncs template.FuncMap,
+	includesInPath string,
+	invisiblePostsByLangTag map[string][]*Post,
+	gat *AssetsTreeNode,
+	url string,
+) (*template.Template, error) {
 	// funcs
-	funcs := bd.bc.Funcs
-
-	if funcs == nil {
-		funcs = make(template.FuncMap, 4)
-	}
-
-	funcs["dateISO"] = func(d time.Time) string {
-		return d.Format(time.RFC3339)
-	}
-
-	funcs["getInvisiblePost"] = func(l *Lang, slug string) *Post {
-		if posts := bd.invisiblePostsByLangTag[l.Tag]; posts != nil {
-			for _, p := range posts {
-				if p.Slug == slug {
-					return p
+	defaultTemplateFuncs := template.FuncMap{
+		"dateISO": func(d time.Time) string {
+			return d.Format(time.RFC3339)
+		},
+		"getInvisiblePost": func(l *Lang, slug string) *Post {
+			if posts := invisiblePostsByLangTag[l.Tag]; posts != nil {
+				for _, p := range posts {
+					if p.Slug == slug {
+						return p
+					}
 				}
 			}
-		}
 
-		return nil
+			return nil
+		},
+		"assetsLink": generateAssetsLinkFn(gat, nil, ""),
+		"postLinkBySlugAndLang": func(slug string, l *Lang) string {
+			if l.Default {
+				return fmt.Sprintf("/posts/%v", slug)
+			}
+
+			return fmt.Sprintf("/%v/posts/%v", l.Tag, slug)
+		},
+		"homeLinkByLang": func(l *Lang) string {
+			if l.Default {
+				return fmt.Sprintf("/")
+			}
+
+			return fmt.Sprintf("/%v", l.Tag)
+		},
+		"relToAbsLink": func(link string) string {
+			if link == "/" {
+				return url
+			}
+
+			return url + link
+		},
+		"sortPostsByDateDesc": func(posts []*Post) []*Post {
+			sorted := make([]*Post, len(posts))
+			copy(sorted, posts)
+
+			sort.SliceStable(sorted, func(i, j int) bool {
+				return sorted[i].Date.After(sorted[j].Date)
+			})
+
+			return sorted
+		},
 	}
 
-	funcs["assetsLink"] = generateAssetsLinkFn(bd.gat, nil, "")
-
-	funcs["postLinkBySlugAndLang"] = func(slug string, l *Lang) string {
-		if l.Default {
-			return fmt.Sprintf("/posts/%v", slug)
-		}
-
-		return fmt.Sprintf("/%v/posts/%v", l.Tag, slug)
-	}
-
-	funcs["homeLinkByLang"] = func(l *Lang) string {
-		if l.Default {
-			return fmt.Sprintf("/")
-		}
-
-		return fmt.Sprintf("/%v", l.Tag)
-	}
-
-	funcs["relToAbsLink"] = func(link string) string {
-		if link == "/" {
-			return bd.c.URL
-		}
-
-		return bd.c.URL + link
-	}
-
-	funcs["sortPostsByDateDesc"] = func(posts []*Post) []*Post {
-		sorted := make([]*Post, len(posts))
-		copy(sorted, posts)
-
-		sort.SliceStable(sorted, func(i, j int) bool {
-			return sorted[i].Date.After(sorted[j].Date)
-		})
-
-		return sorted
-	}
-
-	baseTemplate := template.Must(template.New("base").Funcs(funcs).Parse(indexHTML))
+	baseTemplate := template.Must(
+		template.New("base").Funcs(templateFuncs).Funcs(defaultTemplateFuncs).Parse(indexHTML),
+	)
 
 	// includes
-	includesPath := path.Join(bd.bc.InPath, "includes")
-	includesFileInfos, err := ioutil.ReadDir(includesPath)
+	includesFileInfos, err := ioutil.ReadDir(includesInPath)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +178,7 @@ func createBaseTemplateWithIncludes(bd buildData) (*template.Template, error) {
 			continue
 		}
 
-		includeFileContent, err := ioutil.ReadFile(path.Join(includesPath, includesFileInfo.Name()))
+		includeFileContent, err := ioutil.ReadFile(path.Join(includesInPath, includesFileInfo.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -203,14 +200,12 @@ func createBaseTemplateWithIncludes(bd buildData) (*template.Template, error) {
 		baseTemplate = template.Must(baseTemplate.Parse(`{{ define "head" }}{{ end }}`))
 	}
 
-	// templates
 	return baseTemplate, nil
 }
 
-func createPageTemplate(bd buildData, baseTemplate *template.Template, pageName string) (*template.Template, error) {
+func createPageTemplate(pagesInPath string, baseTemplate *template.Template, pageName string) (*template.Template, error) {
 	pageContent, err := ioutil.ReadFile(path.Join(
-		bd.bc.InPath,
-		"pages",
+		pagesInPath,
 		fmt.Sprintf("%v.html", pageName),
 	))
 	if err != nil {
@@ -241,51 +236,6 @@ func executePrettifyAndWriteTemplate(t *template.Template, tData TemplateData, o
 	}
 	if _, err = outFile.Write(htmlPretty); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func executePostTemplateForEachPost(bd buildData, postsDirOutPath string, postPageT *template.Template, currentLang *Lang, posts []*Post) error {
-	for _, p := range posts {
-		postDirPath := path.Join(postsDirOutPath, p.Slug)
-		err := os.Mkdir(postDirPath, os.ModeDir|os.ModePerm)
-		if err != nil {
-			return err
-		}
-
-		data := TemplateData{
-			Title:       fmt.Sprintf("%v - %v", p.Title, bd.c.Title),
-			Description: p.Excerpt,
-			Page:        "post",
-			Post:        p,
-			Lang:        currentLang,
-			Author:      bd.c.Author,
-		}
-
-		if currentLang.Default {
-			data.URL = "/posts/" + p.Slug
-		} else {
-			data.URL = "/" + currentLang.Tag + "/posts/" + p.Slug
-		}
-
-		if p.Img != nil {
-			data.Img = p.Img
-		} else {
-			data.Img = bd.c.defaultImgByLangTag[currentLang.Tag]
-		}
-
-		// alternate links
-		data.AlternateLinks = generateAlternateLinks(nil, []string{"posts", p.Slug}, bd.c.Langs)
-
-		postPageT.Funcs(map[string]interface{}{
-			"assetsLink": generateAssetsLinkFn(bd.gat, p.pwat, p.Slug),
-		})
-
-		err = executePrettifyAndWriteTemplate(postPageT, data, path.Join(postDirPath, "index.html"))
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -331,16 +281,16 @@ func generateAlternateLinks(preLangSegments, postLangSegments []string, langs []
 	return links
 }
 
-func generateAssetsLinkFn(gat, pwat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) (string, error) {
+func generateAssetsLinkFn(gat, pat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) (string, error) {
 	return func(assetPath AssetRelPath) (string, error) {
-		if n, searchedInPWAT := findByRelPathInGATOrPWAT(gat, pwat, assetPath); n != nil {
-			if searchedInPWAT {
-				return path.Join("/assets", postSlug, strings.TrimPrefix(n.processedRelPath, pwat.Path+"/")), nil
+		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
+			if searchedInPAT {
+				return path.Join("/assets", postSlug, strings.TrimPrefix(n.processedRelPath, pat.Path+"/")), nil
 			}
 
 			return path.Join("/assets", strings.TrimPrefix(n.processedRelPath, gat.Path+"/")), nil
 		}
 
-		return "", fmt.Errorf("%v not found in either GAT or PWAT", assetPath)
+		return "", fmt.Errorf("%v not found in either GAT or PAT", assetPath)
 	}
 }

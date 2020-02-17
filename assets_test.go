@@ -985,7 +985,7 @@ func TestFindByRelPath(t *testing.T) {
 	}
 }
 
-func TestFindByRelPathInGATOrPWAT(t *testing.T) {
+func TestFindByRelPathInGATOrPAT(t *testing.T) {
 	/*
 		node1
 			node2
@@ -1061,9 +1061,9 @@ func TestFindByRelPathInGATOrPWAT(t *testing.T) {
 	node6.Next = node8
 
 	tests := []struct {
-		path           AssetRelPath
-		gat, pwat, res *AssetsTreeNode
-		searchedInPWAT bool
+		path          AssetRelPath
+		gat, pat, res *AssetsTreeNode
+		searchedInPAT bool
 	}{
 		{
 			AssetRelPath("/" + strings.TrimPrefix(node2.Path, node1.Path+"/")),
@@ -1097,13 +1097,13 @@ func TestFindByRelPathInGATOrPWAT(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			res, searchedInPWAT := findByRelPathInGATOrPWAT(test.gat, test.pwat, test.path)
+			res, searchedInPAT := findByRelPathInGATOrPAT(test.gat, test.pat, test.path)
 
 			if res != test.res {
 				t.Errorf("got %v, want %v", res, test.res)
 			}
 
-			if searchedInPWAT != test.searchedInPWAT {
+			if searchedInPAT != test.searchedInPAT {
 				t.Errorf("got %v, want %v", res, test.res)
 			}
 		})

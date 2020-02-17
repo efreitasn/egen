@@ -15,13 +15,6 @@
     {{ end }}
   </ul>
 </div>
-{{ if .Post.Keywords }}
-  <div>
-    {{ range .Post.Keywords }}
-    <div>{{ . }}</div>
-    {{ end }}
-  </div>
-{{ end }}
 <div>
   {{ .Post.Content }}
 </div>

@@ -33,7 +33,6 @@ type configFileData struct {
 	Img         AssetRelPath
 	Langs       []*Lang
 	Author      *Author
-	Keywords    map[string]i18nStrings
 }
 
 type config struct {

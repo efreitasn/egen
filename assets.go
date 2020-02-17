@@ -24,7 +24,7 @@ const (
 )
 
 // AssetRelPath is the path of an asset relative to the global assets
-// tree (GAT) or to a post-wise assets tree (PWAT). The former happens
+// tree (GAT) or to a post-wise assets tree (PAT). The former happens
 // when the path starts with "/", while the latter happens when the
 // path starts with any character other than "/".
 type AssetRelPath string
@@ -331,10 +331,10 @@ func traverseRec(n *AssetsTreeNode, fn AssetsTreeNodeTraverseFn) (TraverseStatus
 	return Next, nil
 }
 
-// findByRelPathInGATOrPWAT searchs for a node whose path related to the root of the GAT or to
-// the root of the PWAT is equal to path. If path starts with /, it searchs in the GAT, otherwise
-// it'll search in the PWAT.
-func findByRelPathInGATOrPWAT(gat, pwat *AssetsTreeNode, relPath AssetRelPath) (n *AssetsTreeNode, searchedInPWAT bool) {
+// findByRelPathInGATOrPAT searchs for a node whose path related to the root of the GAT or to
+// the root of the PAT is equal to path. If path starts with /, it searchs in the GAT, otherwise
+// it'll search in the PAT.
+func findByRelPathInGATOrPAT(gat, pat *AssetsTreeNode, relPath AssetRelPath) (n *AssetsTreeNode, searchedInPAT bool) {
 	if len(relPath) == 0 {
 		return nil, false
 	}
@@ -347,11 +347,11 @@ func findByRelPathInGATOrPWAT(gat, pwat *AssetsTreeNode, relPath AssetRelPath) (
 		return gat.FindByRelPath(strings.TrimPrefix(string(relPath), "/")), false
 	}
 
-	if pwat == nil {
+	if pat == nil {
 		return nil, true
 	}
 
-	return pwat.FindByRelPath(string(relPath)), true
+	return pat.FindByRelPath(string(relPath)), true
 }
 
 var cssFilenameRegExp = regexp.MustCompile("^.*\\.css$")
@@ -364,6 +364,7 @@ func bundleCSSFilesInAT(rootNode *AssetsTreeNode) error {
 			return Next, nil
 		}
 
+		// only nodes whose depth = 1
 		if n.Type == DIRNODE {
 			return SkipChildren, nil
 		}
@@ -385,15 +386,24 @@ func bundleCSSFilesInAT(rootNode *AssetsTreeNode) error {
 		return err
 	}
 
+	// minifying
+	m := minify.New()
+	m.AddFunc("text/css", css.Minify)
+
+	cssContentMinified, err := m.Bytes("text/css", cssContent)
+	if err != nil {
+		return err
+	}
+
 	n := rootNode.AddChild(FILENODE, "style.css")
-	n.SetContent(cssContent)
+	n.SetContent(cssContentMinified)
 
 	return nil
 }
 
 // processAT process each node of a tree of assets rooted at rootNode and places the output
-// in outDirPath. Some of the operations performed when processing files are generating md5
-// hash and minifying.
+// in outDirPath. Each processed node has its processedRelPath and processedPath properties
+// set.
 func processAT(rootNode *AssetsTreeNode, outDirPath string) error {
 	err := rootNode.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
 		if n == rootNode {
@@ -407,28 +417,13 @@ func processAT(rootNode *AssetsTreeNode, outDirPath string) error {
 			ext := filepath.Ext(pathWithoutRoot)
 			pathWithoutRootWithoutExt := strings.TrimSuffix(pathWithoutRoot, ext)
 
-			// minifying
-			m := minify.New()
-			m.AddFunc("text/css", css.Minify)
-
+			// md5 hash
 			nodeContent, err := n.Content()
 			if err != nil {
 				return Terminate, err
 			}
 
-			nodeContentOut := nodeContent
-
-			switch ext {
-			case ".css":
-				cssOut, err := m.Bytes("text/css", nodeContent)
-				if err != nil {
-					return Terminate, err
-				}
-				nodeContentOut = cssOut
-			}
-
-			// md5 hash
-			md5HashBs := md5.Sum(nodeContentOut)
+			md5HashBs := md5.Sum(nodeContent)
 			md5Hash := hex.EncodeToString(md5HashBs[:])
 			pathWithoutRootProcessed := pathWithoutRootWithoutExt + "-" + string(md5Hash[:]) + ext
 
@@ -439,7 +434,7 @@ func processAT(rootNode *AssetsTreeNode, outDirPath string) error {
 			}
 
 			// writing to new file
-			_, err = fileOut.Write(nodeContentOut)
+			_, err = fileOut.Write(nodeContent)
 			if err != nil {
 				fileOut.Close()
 				return Terminate, err

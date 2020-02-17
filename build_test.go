@@ -23,17 +23,7 @@ func TestBuild_ok(t *testing.T) {
 			BuildConfig{
 				InPath:  path.Join(okDir, "1", "in"),
 				OutPath: path.Join(okDir, "1", "test_output"),
-				PreGATProc: func(gat *AssetsTreeNode) {
-					aaNode := gat.AddChild(FILENODE, "aa.txt")
-					aaNode.SetContent([]byte("aa"))
-				},
-				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
-					if postSlug == "third" {
-						zzNode := pwat.AddChild(FILENODE, "zz.txt")
-						zzNode.SetContent([]byte("zz"))
-					}
-				},
-				Funcs: template.FuncMap{
+				TemplateFuncs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
 						case "en":
@@ -53,7 +43,7 @@ func TestBuild_ok(t *testing.T) {
 			BuildConfig{
 				InPath:  path.Join(okDir, "2", "in"),
 				OutPath: path.Join(okDir, "2", "test_output"),
-				Funcs: template.FuncMap{
+				TemplateFuncs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
 						case "en":
@@ -73,17 +63,7 @@ func TestBuild_ok(t *testing.T) {
 			BuildConfig{
 				InPath:  path.Join(errDir, "1", "in"),
 				OutPath: path.Join(errDir, "1", "test_output"),
-				PreGATProc: func(gat *AssetsTreeNode) {
-					aaNode := gat.AddChild(FILENODE, "aa.txt")
-					aaNode.SetContent([]byte("aa"))
-				},
-				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
-					if postSlug == "third" {
-						zzNode := pwat.AddChild(FILENODE, "zz.txt")
-						zzNode.SetContent([]byte("zz"))
-					}
-				},
-				Funcs: template.FuncMap{
+				TemplateFuncs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
 						case "en":
@@ -103,17 +83,7 @@ func TestBuild_ok(t *testing.T) {
 			BuildConfig{
 				InPath:  path.Join(errDir, "2", "in"),
 				OutPath: path.Join(errDir, "2", "test_output"),
-				PreGATProc: func(gat *AssetsTreeNode) {
-					aaNode := gat.AddChild(FILENODE, "aa.txt")
-					aaNode.SetContent([]byte("aa"))
-				},
-				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
-					if postSlug == "third" {
-						zzNode := pwat.AddChild(FILENODE, "zz.txt")
-						zzNode.SetContent([]byte("zz"))
-					}
-				},
-				Funcs: template.FuncMap{
+				TemplateFuncs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
 						case "en":
@@ -133,17 +103,7 @@ func TestBuild_ok(t *testing.T) {
 			BuildConfig{
 				InPath:  path.Join(errDir, "3", "in"),
 				OutPath: path.Join(errDir, "3", "test_output"),
-				PreGATProc: func(gat *AssetsTreeNode) {
-					aaNode := gat.AddChild(FILENODE, "aa.txt")
-					aaNode.SetContent([]byte("aa"))
-				},
-				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
-					if postSlug == "third" {
-						zzNode := pwat.AddChild(FILENODE, "zz.txt")
-						zzNode.SetContent([]byte("zz"))
-					}
-				},
-				Funcs: template.FuncMap{
+				TemplateFuncs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
 						case "en":
@@ -163,17 +123,7 @@ func TestBuild_ok(t *testing.T) {
 			BuildConfig{
 				InPath:  path.Join(errDir, "4", "in"),
 				OutPath: path.Join(errDir, "4", "test_output"),
-				PreGATProc: func(gat *AssetsTreeNode) {
-					aaNode := gat.AddChild(FILENODE, "aa.txt")
-					aaNode.SetContent([]byte("aa"))
-				},
-				PrePWATProc: func(postSlug string, pwat *AssetsTreeNode) {
-					if postSlug == "third" {
-						zzNode := pwat.AddChild(FILENODE, "zz.txt")
-						zzNode.SetContent([]byte("zz"))
-					}
-				},
-				Funcs: template.FuncMap{
+				TemplateFuncs: template.FuncMap{
 					"formatDateByLang": func(date time.Time, l *Lang) string {
 						switch l.Tag {
 						case "en":
