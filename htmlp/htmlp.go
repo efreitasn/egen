@@ -1,4 +1,4 @@
-// Package htmlp provides an html prettifier.
+// Package htmlp provides an HTML prettifier.
 package htmlp
 
 import (
@@ -9,7 +9,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-// Pretty prettifies the given html.
+// Pretty prettifies the given HTML.
 func Pretty(data []byte) ([]byte, error) {
 	r := bytes.NewReader(data)
 
