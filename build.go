@@ -139,6 +139,7 @@ func Build(bc BuildConfig) error {
 			Posts:  visiblePostsByLangTag[l.Tag],
 			Lang:   l,
 			Author: c.Author,
+			Color:  c.Color,
 		}
 
 		langOutPath := bc.OutPath
@@ -188,6 +189,7 @@ func Build(bc BuildConfig) error {
 					Title:       fmt.Sprintf("%v - %v", p.Title, c.Title),
 					Description: p.Excerpt,
 					Page:        "post",
+					Color:       c.Color,
 					Post:        p,
 					Lang:        l,
 					Author:      c.Author,

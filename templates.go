@@ -22,6 +22,9 @@ var indexHTML = `
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	{{ if .Color }}
+		<meta name="theme-color" content="{{ .Color }}">
+	{{ end }}
 	<title>{{ .Title }}</title>
 	{{ if .Description }}
 		<meta property="description" content="{{ .Description }}">
@@ -95,6 +98,7 @@ type TemplateData struct {
 	Description string
 	Author      *Author
 	Img         *Img
+	Color       string
 	// Posts is a list of posts that are visible (feed: true)
 	Posts []*Post
 	// Post is equal to nil unless page == 'post'

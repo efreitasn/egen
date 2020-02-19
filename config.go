@@ -30,6 +30,7 @@ type configFileData struct {
 	Description i18nStrings
 	ImgAlt      i18nStrings `yaml:"imgAlt"`
 	URL         string
+	Color       string
 	Img         AssetRelPath
 	Langs       []*Lang
 	Author      *Author
