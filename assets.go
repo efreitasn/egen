@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/tdewolff/minify"
@@ -73,7 +74,7 @@ var defaultIgnoreRegexps = []*regexp.Regexp{
 // whose name matches any item in ignoreRegexps or defaultIgnoreRegexps. When testing a name
 // against a regexp, it ends with / if it's a directory. Note that, once a node is ignored,
 // all of its descendants are automatically ignored, regardless of whether their names match
-// one of the regexps.
+// one of the regexps. The returned tree is sorted alphabetically by node name in ascending order.
 func generateAssetsTree(assetsPath string, ignoreRegexps []*regexp.Regexp) (*AssetsTreeNode, error) {
 	rootNode := &AssetsTreeNode{
 		Type: DIRNODE,
@@ -210,7 +211,7 @@ func (n *AssetsTreeNode) RemoveFromTree() {
 	n.Path = ""
 }
 
-// AddChild adds c as child of n.
+// AddChild adds c as child of n in a position that keeps n's children sorted alphabetically by name in ascending order.
 func (n *AssetsTreeNode) AddChild(t AssetsTreeNodeType, name string) *AssetsTreeNode {
 	c := &AssetsTreeNode{
 		Type:   t,
@@ -222,9 +223,39 @@ func (n *AssetsTreeNode) AddChild(t AssetsTreeNodeType, name string) *AssetsTree
 	if n.FirstChild == nil {
 		n.FirstChild = c
 	} else {
-		lastChild := n.LastChild()
-		lastChild.Next = c
-		c.Previous = lastChild
+		var previousNode *AssetsTreeNode
+
+		n.Traverse(func(n2 *AssetsTreeNode) (TraverseStatus, error) {
+			if n2 == n {
+				return Next, nil
+			}
+
+			if sort.StringSlice([]string{c.Name, n2.Name}).Less(0, 1) {
+				return Terminate, nil
+			}
+
+			previousNode = n2
+
+			if n2.Type == DIRNODE {
+				return SkipChildren, nil
+			}
+
+			return Next, nil
+		})
+
+		if previousNode == nil {
+			n.FirstChild.Previous = c
+			c.Next = n.FirstChild
+			n.FirstChild = c
+		} else {
+			c.Previous = previousNode
+			c.Next = previousNode.Next
+			if previousNode.Next != nil {
+				previousNode.Next.Previous = c
+			}
+
+			previousNode.Next = c
+		}
 	}
 
 	c.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {

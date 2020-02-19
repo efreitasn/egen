@@ -2,6 +2,7 @@ package egen
 
 import (
 	"errors"
+	"fmt"
 	"path"
 	"reflect"
 	"regexp"
@@ -9,6 +10,14 @@ import (
 	"strings"
 	"testing"
 )
+
+func printDebugNode(n *AssetsTreeNode) {
+	n.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
+		fmt.Printf("%p - %+v\n", n, n)
+
+		return Next, nil
+	})
+}
 
 func TestGenerateAssetsTree(t *testing.T) {
 	rootNode := &AssetsTreeNode{
@@ -594,7 +603,224 @@ func TestRemoveFromTree_2(t *testing.T) {
 	}
 }
 
-func TestAddChild(t *testing.T) {
+func TestAddChild_1(t *testing.T) {
+	/*
+		dir1
+			dir2
+				file1
+			dir3
+				file2
+			dir4
+				file3
+			dir6
+				file5
+	*/
+	dir1 := &AssetsTreeNode{
+		Type: DIRNODE,
+		Name: "dir1",
+		Path: "dir1",
+	}
+
+	dir2 := &AssetsTreeNode{
+		Type:   DIRNODE,
+		Name:   "dir2",
+		Parent: dir1,
+		Path:   path.Join(dir1.Path, "dir2"),
+	}
+	dir1.FirstChild = dir2
+
+	file1 := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file1",
+		Parent: dir2,
+		Path:   path.Join(dir2.Path, "file1"),
+	}
+	dir2.FirstChild = file1
+
+	dir3 := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir3",
+		Parent:   dir1,
+		Path:     path.Join(dir1.Path, "dir3"),
+		Previous: dir2,
+	}
+	dir2.Next = dir3
+
+	file2 := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file2",
+		Parent: dir3,
+		Path:   path.Join(dir3.Path, "file2"),
+	}
+	dir3.FirstChild = file2
+
+	dir4 := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir4",
+		Parent:   dir1,
+		Path:     path.Join(dir1.Path, "dir4"),
+		Previous: dir3,
+	}
+	dir3.Next = dir4
+
+	file3 := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file3",
+		Parent: dir4,
+		Path:   path.Join(dir4.Path, "file3"),
+	}
+	dir4.FirstChild = file3
+
+	dir6 := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir6",
+		Parent:   dir1,
+		Path:     path.Join(dir1.Path, "dir6"),
+		Previous: dir4,
+	}
+	dir4.Next = dir6
+
+	file5 := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file5",
+		Parent: dir6,
+		Path:   path.Join(dir6.Path, "file5"),
+	}
+	dir6.FirstChild = file5
+
+	/*
+		AFTER ADDING:
+		dir1
+			dir2
+				file1
+			dir3
+				file2
+			dir4
+				file3
+			dir5
+				file4
+			dir6
+				file5
+	*/
+	dir1AD := &AssetsTreeNode{
+		Type: DIRNODE,
+		Name: "dir1",
+		Path: "dir1",
+	}
+
+	dir2AD := &AssetsTreeNode{
+		Type:   DIRNODE,
+		Name:   "dir2",
+		Parent: dir1AD,
+		Path:   path.Join(dir1AD.Path, "dir2"),
+	}
+	dir1AD.FirstChild = dir2AD
+
+	file1AD := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file1",
+		Parent: dir2AD,
+		Path:   path.Join(dir2AD.Path, "file1"),
+	}
+	dir2AD.FirstChild = file1AD
+
+	dir3AD := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir3",
+		Parent:   dir1AD,
+		Path:     path.Join(dir1AD.Path, "dir3"),
+		Previous: dir2AD,
+	}
+	dir2AD.Next = dir3AD
+
+	file2AD := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file2",
+		Parent: dir3AD,
+		Path:   path.Join(dir3AD.Path, "file2"),
+	}
+	dir3AD.FirstChild = file2AD
+
+	dir4AD := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir4",
+		Parent:   dir1AD,
+		Path:     path.Join(dir1AD.Path, "dir4"),
+		Previous: dir3AD,
+	}
+	dir3AD.Next = dir4AD
+
+	file3AD := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file3",
+		Parent: dir4AD,
+		Path:   path.Join(dir4AD.Path, "file3"),
+	}
+	dir4AD.FirstChild = file3AD
+
+	dir5Name := "dir5"
+	dir5AD := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     dir5Name,
+		Parent:   dir1AD,
+		Path:     path.Join(dir1AD.Path, dir5Name),
+		Previous: dir4AD,
+	}
+	dir4AD.Next = dir5AD
+
+	file4Name := "file4"
+	file4AD := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   file4Name,
+		Parent: dir5AD,
+		Path:   path.Join(dir5AD.Path, file4Name),
+	}
+	dir5AD.FirstChild = file4AD
+
+	dir6AD := &AssetsTreeNode{
+		Type:     DIRNODE,
+		Name:     "dir6",
+		Parent:   dir1AD,
+		Path:     path.Join(dir1AD.Path, "dir6"),
+		Previous: dir5AD,
+	}
+	dir5AD.Next = dir6AD
+
+	file5AD := &AssetsTreeNode{
+		Type:   FILENODE,
+		Name:   "file5",
+		Parent: dir6AD,
+		Path:   path.Join(dir6AD.Path, "file5"),
+	}
+	dir6AD.FirstChild = file5AD
+
+	dir5 := dir1.AddChild(DIRNODE, dir5Name)
+	file4 := dir5.AddChild(FILENODE, file4Name)
+
+	if !reflect.DeepEqual(dir1, dir1AD) {
+		t.Error("trees are not equal")
+	}
+
+	if dir5.Parent != dir1 {
+		t.Errorf("parent of %v should be %v", dir5, dir1)
+	}
+
+	if file4.Parent != dir5 {
+		t.Errorf("parent of %v should be %v", file4, dir5)
+	}
+
+	expectedDir5Path := path.Join(dir1.Path, dir5Name)
+	if dir5.Path != expectedDir5Path {
+		t.Errorf("got %v, want %v", dir5.Path, expectedDir5Path)
+	}
+
+	expectedFile4Path := path.Join(dir5.Path, file4Name)
+	if file4.Path != expectedFile4Path {
+		t.Errorf("got %v, want %v", file4.Path, expectedFile4Path)
+	}
+}
+
+func TestAddChild_2(t *testing.T) {
 	/*
 		dir1
 			dir2
