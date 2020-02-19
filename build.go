@@ -210,6 +210,7 @@ func Build(bc BuildConfig) error {
 
 				postPageTemplate.Funcs(map[string]interface{}{
 					"assetsLink": generateAssetsLinkFn(gat, p.pat, p.Slug),
+					"hasAsset":   generateHasAsset(gat, p.pat, p.Slug),
 				})
 
 				err = executePrettifyAndWriteTemplate(postPageTemplate, data, path.Join(postDirPath, "index.html"))

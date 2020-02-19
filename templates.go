@@ -56,10 +56,8 @@ var indexHTML = `
 	{{ range .AlternateLinks -}}
   	<link rel="alternate" hreflang="{{ .Lang.Tag }}" href="{{ relToAbsLink .URL }}">
 	{{- end }}
-	{{ with $cssFile := assetsLink "/style.css" }}
-		{{ if $cssFile }}
-			<link rel="stylesheet" href="{{ $cssFile }}">
-		{{ end }}
+	{{ if hasAsset "/style.css" }}
+		<link rel="stylesheet" href="{{ assetsLink "/style.css" }}">
 	{{ end }}
 	{{ template "head" . }}
 </head>
@@ -130,6 +128,7 @@ func createBaseTemplateWithIncludes(
 			return nil
 		},
 		"assetsLink": generateAssetsLinkFn(gat, nil, ""),
+		"hasAsset":   generateHasAsset(gat, nil, ""),
 		"postLinkBySlugAndLang": func(slug string, l *Lang) string {
 			if l.Default {
 				return fmt.Sprintf("/posts/%v", slug)
@@ -292,5 +291,19 @@ func generateAssetsLinkFn(gat, pat *AssetsTreeNode, postSlug string) func(assetP
 		}
 
 		return "", fmt.Errorf("%v not found in either GAT or PAT", assetPath)
+	}
+}
+
+func generateHasAsset(gat, pat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) bool {
+	return func(assetPath AssetRelPath) bool {
+		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
+			if searchedInPAT {
+				return true
+			}
+
+			return true
+		}
+
+		return false
 	}
 }
