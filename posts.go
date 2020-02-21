@@ -303,7 +303,9 @@ func generatePostsLists(
 
 					lexer := lexers.Get(lang)
 					if lexer == nil {
-						return blackfriday.GoToNext
+						bfTraverseErr = fmt.Errorf("no lexer found for %v code in %v post (%v)", lang, p.Slug, l.Tag)
+
+						return blackfriday.Terminate
 					}
 
 					iterator, _ := lexer.Tokenise(nil, string(node.Literal))
@@ -312,9 +314,22 @@ func generatePostsLists(
 						chromaHTML.HighlightLines(hLines),
 					)
 
-					err := formatter.Format(&htmlBuff, chromaStyle, iterator)
+					var formattedCode bytes.Buffer
+					err := formatter.Format(&formattedCode, chromaStyle, iterator)
 					if err != nil {
-						return blackfriday.GoToNext
+						bfTraverseErr = err
+
+						return blackfriday.Terminate
+					}
+
+					if _, err = htmlBuff.Write(bytes.ReplaceAll(
+						formattedCode.Bytes(),
+						[]byte(`<pre`),
+						[]byte(`<pre data-htmlp-ignore`),
+					)); err != nil {
+						bfTraverseErr = err
+
+						return blackfriday.Terminate
 					}
 
 					return blackfriday.GoToNext
@@ -364,15 +379,7 @@ func generatePostsLists(
 			}
 
 			// markdown
-			p.Content = template.HTML(
-				string(
-					bytes.ReplaceAll(
-						htmlBuff.Bytes(),
-						[]byte(`<pre`),
-						[]byte(`<pre data-htmlp-ignore`),
-					),
-				),
-			)
+			p.Content = template.HTML(htmlBuff.Bytes())
 
 			if allPostsByLangTag[l.Tag] == nil {
 				allPostsByLangTag[l.Tag] = make([]*Post, 0, 1)
