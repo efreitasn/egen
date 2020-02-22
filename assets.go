@@ -126,7 +126,7 @@ fileInfosLoop:
 				Path: path.Join(rootNode.Path, nodeName),
 			}
 
-			err := generateAssetsTreeRec(node, []*regexp.Regexp{})
+			err := generateAssetsTreeRec(node, ignoreRegexps)
 			if err != nil {
 				return err
 			}
