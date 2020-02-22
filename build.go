@@ -90,7 +90,7 @@ func Build(bc BuildConfig) error {
 		return err
 	}
 
-	err = processAT(gat, assetsOutPath)
+	err = processAT(gat, assetsOutPath, false)
 	if err != nil {
 		return err
 	}

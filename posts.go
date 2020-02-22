@@ -108,7 +108,7 @@ func generatePostsLists(
 				}
 			}
 
-			if err = processAT(pat, assetsPathOut); err != nil {
+			if err = processAT(pat, assetsPathOut, false); err != nil {
 				return nil, nil, nil, fmt.Errorf("processing pat: %v", err)
 			}
 		}

@@ -435,9 +435,9 @@ func bundleCSSFilesInAT(rootNode *AssetsTreeNode) error {
 // processAT process each node of a tree of assets rooted at rootNode and places the output
 // in outDirPath. Each processed node has its processedRelPath and processedPath properties
 // set.
-func processAT(rootNode *AssetsTreeNode, outDirPath string) error {
+func processAT(rootNode *AssetsTreeNode, outDirPath string, processRoot bool) error {
 	err := rootNode.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
-		if n == rootNode {
+		if n == rootNode && !processRoot {
 			return Next, nil
 		}
 
