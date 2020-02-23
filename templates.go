@@ -291,10 +291,10 @@ func generateAssetsLinkFn(gat, pat *AssetsTreeNode, postSlug string) func(assetP
 	return func(assetPath AssetRelPath) (string, error) {
 		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
 			if searchedInPAT {
-				return path.Join("/assets", postSlug, strings.TrimPrefix(n.processedRelPath, pat.Path+"/")), nil
+				return path.Join("/assets", postSlug, n.processedRelPath), nil
 			}
 
-			return path.Join("/assets", strings.TrimPrefix(n.processedRelPath, gat.Path+"/")), nil
+			return path.Join("/assets", n.processedRelPath), nil
 		}
 
 		return "", fmt.Errorf("%v not found in either GAT or PAT", assetPath)
