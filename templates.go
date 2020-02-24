@@ -56,8 +56,9 @@ var indexHTML = `
 	{{ if eq .Page "post" }}
 	<meta property="twitter:creator" content="@{{ .Author.Twitter }}">
 	{{ end }}
-	{{ if hasAsset "/favicon.ico" }}
-		<link rel="icon" type="image/x-icon" href="{{ assetLink "/favicon.ico" }}">
+	{{ if hasAsset "/icon.png" }}
+		<link rel="icon" href="{{ assetLink "/icon.png" }}">
+		<link rel="apple-touch-icon" href="{{ assetLink "/icon.png" }}">
 	{{ end }}
 	{{ range .AlternateLinks -}}
   	<link rel="alternate" hreflang="{{ .Lang.Tag }}" href="{{ relToAbsLink .URL }}">
