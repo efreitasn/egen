@@ -45,7 +45,7 @@ type Post struct {
 	URL string
 	// pat is a tree composed of any files in the post's path
 	// whose name doesn't match any item in nonPostAssetsRxs.
-	pat *AssetsTreeNode
+	pat *assetsTreeNode
 }
 
 type postYAMLFrontMatter struct {
@@ -62,7 +62,7 @@ type postYAMLDataFileContent struct {
 }
 
 func generatePostsLists(
-	gat *AssetsTreeNode,
+	gat *assetsTreeNode,
 	postsInPath string,
 	langs []*Lang,
 	assetsOutPath string,
@@ -89,12 +89,12 @@ func generatePostsLists(
 
 		pat, err := generateAssetsTree(postDirPath, nonPostAssetsRxs)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("generating pat for %v: %v", postSlug, err)
+			return nil, nil, nil, fmt.Errorf("generating pat for %v post: %v", postSlug, err)
 		}
 
 		// this condition exists so that assetsPathOut is only created if the post
 		// has at least one asset.
-		if pat.FirstChild != nil {
+		if pat.firstChild != nil {
 			assetsPathOut := path.Join(assetsOutPath, postSlug)
 
 			// it's checked whether assetsPathOut already exists because it could've
@@ -111,7 +111,7 @@ func generatePostsLists(
 				}
 			}
 
-			if err = processAT(pat, assetsPathOut, false); err != nil {
+			if err = pat.process(assetsPathOut, false); err != nil {
 				return nil, nil, nil, fmt.Errorf("processing pat: %v", err)
 			}
 		}
@@ -203,6 +203,7 @@ func generatePostsLists(
 			mdProcessor := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions))
 			rootNode := mdProcessor.Parse(postContentMD)
 
+			// traverse the tree to remove img tags from inside p tags.
 			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 				if node.Type == blackfriday.Image && entering {
 					oldParent := node.Parent
@@ -269,8 +270,10 @@ func generatePostsLists(
 
 			var htmlBuff bytes.Buffer
 
-			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
 			var bfTraverseErr error
+			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
+
+			// traverse the tree to render each node
 			rootNode.Walk(func(bfNode *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 				switch {
 				case bfNode.Type == blackfriday.CodeBlock && entering:
@@ -353,16 +356,18 @@ func generatePostsLists(
 						for _, width := range postImgSizes {
 							node.addSize(width)
 						}
-						if err := processNodeSizes(node); err != nil {
-							bfTraverseErr = fmt.Errorf("while processing sizes for %v img: %v", node.Path, err)
+						if err := node.processSizes(); err != nil {
+							bfTraverseErr = fmt.Errorf("while processing sizes for %v img: %v", node.path, err)
 
 							return blackfriday.Terminate
 						}
 
 						var srcsetStrB strings.Builder
-						nodeSizesSorted := make([]*imgNodeSize, len(node.sizes))
-						copy(nodeSizesSorted, node.sizes)
+						var src string
 
+						// sort the resulting sizes
+						nodeSizesSorted := make([]*assetsTreeNodeImgSize, len(node.sizes))
+						copy(nodeSizesSorted, node.sizes)
 						sort.Slice(nodeSizesSorted, func(i, j int) bool {
 							return nodeSizesSorted[i].width < nodeSizesSorted[j].width
 						})
@@ -372,12 +377,22 @@ func generatePostsLists(
 								srcsetStrB.WriteString(", ")
 							}
 
+							var assetLink string
+							if searchedInPAT {
+								assetLink = node.assetLink(p.Slug, size)
+							} else {
+								assetLink = node.assetLink("", size)
+							}
+
+							if size.original {
+								src = assetLink
+							}
+
 							srcsetStrB.WriteString(
-								fmt.Sprintf("%v %vw", nodeSizeAssetLink(node, p.Slug, size, searchedInPAT), size.width),
+								fmt.Sprintf("%v %vw", assetLink, size.width),
 							)
 						}
 
-						src := nodeSizeAssetLink(node, p.Slug, node.findOriginalSize(), searchedInPAT)
 						img := fmt.Sprintf(`<img srcset="%v" sizes="%v" src="%v" alt="%v">`, srcsetStrB.String(), postImgMediaQuery, src, alt)
 						figcaption := ""
 
@@ -408,7 +423,6 @@ func generatePostsLists(
 				return nil, nil, nil, bfTraverseErr
 			}
 
-			// markdown
 			p.Content = template.HTML(htmlBuff.Bytes())
 
 			if allPostsByLangTag[l.Tag] == nil {

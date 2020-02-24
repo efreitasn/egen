@@ -17,58 +17,60 @@ import (
 	"github.com/tdewolff/minify/css"
 )
 
-// AssetsTreeNodeType is the type of a node in a tree of assets.
-type AssetsTreeNodeType int
+// assetsTreeNodeType is the type of a node in a tree of assets.
+type assetsTreeNodeType int
 
 // Node types.
 const (
-	FILENODE AssetsTreeNodeType = iota
+	FILENODE assetsTreeNodeType = iota
 	DIRNODE
 	IMGNODE
 )
 
 var imgNodeNameRegExp = regexp.MustCompile(".+\\.(jpg|jpeg|png)")
+var cssFilenameRegExp = regexp.MustCompile("^.*\\.css$")
 
 // AssetRelPath is the path of an asset relative to the global assets
-// tree (GAT) or to a post-wise assets tree (PAT). The former happens
+// tree (GAT) or to a post assets tree (PAT). The former happens
 // when the path starts with "/", while the latter happens when the
 // path starts with any character other than "/".
 type AssetRelPath string
 
-// TraverseStatus is a status return when traversing a tree.
-type TraverseStatus int
+// traverseStatus is a status return when traversing a tree.
+type traverseStatus int
 
 // Status codes returned when traversing a tree.
 const (
-	Next         TraverseStatus = iota // Go to next node
-	SkipChildren                       // Skip the current node's children
-	Terminate                          // Terminate the traversal
+	next         traverseStatus = iota // Go to next node
+	skipChildren                       // Skip the current node's children
+	terminate                          // Terminate the traversal
 )
 
-type imgNodeSize struct {
+type assetsTreeNodeImgSize struct {
 	original  bool
 	width     int
 	processed bool
 }
 
-// AssetsTreeNodeTraverseFn is the function executed for each one in a tree traversal.
-type AssetsTreeNodeTraverseFn func(n *AssetsTreeNode) (TraverseStatus, error)
+// assetsTreeNodeTraverseFn is the function executed for each one in a tree traversal.
+type assetsTreeNodeTraverseFn func(n *assetsTreeNode) (traverseStatus, error)
 
-// AssetsTreeNode is a node in a tree of assets.
-type AssetsTreeNode struct {
-	Type AssetsTreeNodeType
-	// Name is the name of the file or directory.
+// assetsTreeNode is a node in a tree of assets.
+type assetsTreeNode struct {
+	// t is the type of the node.
+	t assetsTreeNodeType
+	// name is the name of the file, img or directory.
 	// If it's the root node (parent == nil), the name is "assets".
-	Name string
-	// Path is the path of the node from, and including, the root's path.
+	name string
+	// path is the path of the node from, and including, the root's path.
 	// Each path segment is separated by / regardless of the current OS.
-	Path       string
+	path       string
 	content    []byte
-	Parent     *AssetsTreeNode
-	FirstChild *AssetsTreeNode
-	Next       *AssetsTreeNode
-	Previous   *AssetsTreeNode
-	sizes      []*imgNodeSize
+	parent     *assetsTreeNode
+	firstChild *assetsTreeNode
+	next       *assetsTreeNode
+	previous   *assetsTreeNode
+	sizes      []*assetsTreeNodeImgSize
 	// processedPath is the node's path after processing. The path doesn't necessarily starts
 	// with the tree's root's path, since it starts with the outDirPath value provided when
 	// processing the tree.
@@ -87,11 +89,11 @@ var defaultIgnoreRegexps = []*regexp.Regexp{
 // against a regexp, it ends with / if it's a directory. Note that, once a node is ignored,
 // all of its descendants are automatically ignored, regardless of whether their names match
 // one of the regexps. The returned tree is sorted alphabetically by node name in ascending order.
-func generateAssetsTree(assetsPath string, ignoreRegexps []*regexp.Regexp) (*AssetsTreeNode, error) {
-	rootNode := &AssetsTreeNode{
-		Type: DIRNODE,
-		Name: "assets",
-		Path: path.Clean(assetsPath),
+func generateAssetsTree(assetsPath string, ignoreRegexps []*regexp.Regexp) (*assetsTreeNode, error) {
+	rootNode := &assetsTreeNode{
+		t:    DIRNODE,
+		name: "assets",
+		path: path.Clean(assetsPath),
 	}
 
 	err := generateAssetsTreeRec(rootNode, ignoreRegexps)
@@ -102,16 +104,16 @@ func generateAssetsTree(assetsPath string, ignoreRegexps []*regexp.Regexp) (*Ass
 	return rootNode, nil
 }
 
-func generateAssetsTreeRec(rootNode *AssetsTreeNode, ignoreRegexps []*regexp.Regexp) error {
-	fileInfos, err := ioutil.ReadDir(rootNode.Path)
+func generateAssetsTreeRec(rootNode *assetsTreeNode, ignoreRegexps []*regexp.Regexp) error {
+	fileInfos, err := ioutil.ReadDir(rootNode.path)
 	if err != nil {
 		return err
 	}
-	var lastNode *AssetsTreeNode
+	var lastNode *assetsTreeNode
 
 fileInfosLoop:
 	for _, fileInfo := range fileInfos {
-		var node *AssetsTreeNode
+		var node *assetsTreeNode
 		nodeName := fileInfo.Name()
 
 		nodeNameToMatch := nodeName
@@ -133,29 +135,29 @@ fileInfosLoop:
 
 		switch {
 		case imgNodeNameRegExp.MatchString(nodeName):
-			nodePath := path.Join(rootNode.Path, nodeName)
+			nodePath := path.Join(rootNode.path, nodeName)
 
 			width, _, err := imgDimensions(nodePath)
 			if err != nil {
 				return err
 			}
 
-			node = &AssetsTreeNode{
-				Type: IMGNODE,
-				Name: nodeName,
-				Path: nodePath,
-				sizes: []*imgNodeSize{
-					&imgNodeSize{
+			node = &assetsTreeNode{
+				t:    IMGNODE,
+				name: nodeName,
+				path: nodePath,
+				sizes: []*assetsTreeNodeImgSize{
+					&assetsTreeNodeImgSize{
 						original: true,
 						width:    width,
 					},
 				},
 			}
 		case fileInfo.IsDir():
-			node = &AssetsTreeNode{
-				Type: DIRNODE,
-				Name: nodeName,
-				Path: path.Join(rootNode.Path, nodeName),
+			node = &assetsTreeNode{
+				t:    DIRNODE,
+				name: nodeName,
+				path: path.Join(rootNode.path, nodeName),
 			}
 
 			err := generateAssetsTreeRec(node, ignoreRegexps)
@@ -163,19 +165,19 @@ fileInfosLoop:
 				return err
 			}
 		default:
-			node = &AssetsTreeNode{
-				Type: FILENODE,
-				Name: nodeName,
-				Path: path.Join(rootNode.Path, nodeName),
+			node = &assetsTreeNode{
+				t:    FILENODE,
+				name: nodeName,
+				path: path.Join(rootNode.path, nodeName),
 			}
 		}
 
-		node.Parent = rootNode
+		node.parent = rootNode
 		if lastNode == nil {
-			rootNode.FirstChild = node
+			rootNode.firstChild = node
 		} else {
-			lastNode.Next = node
-			node.Previous = lastNode
+			lastNode.next = node
+			node.previous = lastNode
 		}
 
 		lastNode = node
@@ -184,10 +186,8 @@ fileInfosLoop:
 	return nil
 }
 
-// Content returns the content of n.
-// If the node is not a file, it panics.
-func (n *AssetsTreeNode) Content() ([]byte, error) {
-	if n.Type != FILENODE && n.Type != IMGNODE {
+func (n *assetsTreeNode) getContent() ([]byte, error) {
+	if n.t != FILENODE && n.t != IMGNODE {
 		panic("not a file or img node")
 	}
 
@@ -195,126 +195,124 @@ func (n *AssetsTreeNode) Content() ([]byte, error) {
 		return n.content, nil
 	}
 
-	return ioutil.ReadFile(n.Path)
+	return ioutil.ReadFile(n.path)
 }
 
-// SetContent sets the content of n.
-// If the node is not a file, it panics.
-func (n *AssetsTreeNode) SetContent(content []byte) {
-	if n.Type != FILENODE {
+func (n *assetsTreeNode) setContent(content []byte) {
+	if n.t != FILENODE {
 		panic("not a file node")
 	}
 
 	n.content = content
 }
 
-// RemoveFromTree removes n from the tree.
-func (n *AssetsTreeNode) RemoveFromTree() {
-	if n.Parent == nil {
+func (n *assetsTreeNode) removeFromTree() {
+	if n.parent == nil {
 		return
 	}
 
-	if n.Previous == nil {
-		if n.Next != nil {
-			n.Parent.FirstChild = n.Next
-			n.Next.Previous = nil
+	if n.previous == nil {
+		if n.next != nil {
+			n.parent.firstChild = n.next
+			n.next.previous = nil
 		} else {
-			n.Parent.FirstChild = nil
+			n.parent.firstChild = nil
 		}
 	} else {
-		n.Previous.Next = n.Next
+		n.previous.next = n.next
 
-		if n.Next != nil {
-			n.Next.Previous = n.Previous
+		if n.next != nil {
+			n.next.previous = n.previous
 		}
 	}
 
-	if n.Type == DIRNODE {
-		n.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
-			n.Path = ""
+	if n.t == DIRNODE {
+		n.traverse(func(n *assetsTreeNode) (traverseStatus, error) {
+			n.path = ""
 
-			return Next, nil
+			return next, nil
 		})
 	}
 
-	n.Parent = nil
-	n.Previous = nil
-	n.Next = nil
-	n.Path = ""
+	n.parent = nil
+	n.previous = nil
+	n.next = nil
+	n.path = ""
 }
 
-// AddChild adds c as child of n in a position that keeps n's children sorted alphabetically by name in ascending order.
-func (n *AssetsTreeNode) AddChild(t AssetsTreeNodeType, name string) *AssetsTreeNode {
-	c := &AssetsTreeNode{
-		Type:   t,
-		Name:   name,
-		Parent: n,
-		Path:   path.Join(n.Path, name),
+// addChild adds c as child of n in a position that keeps n's children sorted alphabetically by name in ascending order.
+func (n *assetsTreeNode) addChild(t assetsTreeNodeType, name string) *assetsTreeNode {
+	c := &assetsTreeNode{
+		t:      t,
+		name:   name,
+		parent: n,
+		path:   path.Join(n.path, name),
 	}
 
-	if n.FirstChild == nil {
-		n.FirstChild = c
+	if n.firstChild == nil {
+		n.firstChild = c
 	} else {
-		var previousNode *AssetsTreeNode
+		var previousNode *assetsTreeNode
 
-		n.Traverse(func(n2 *AssetsTreeNode) (TraverseStatus, error) {
+		n.traverse(func(n2 *assetsTreeNode) (traverseStatus, error) {
 			if n2 == n {
-				return Next, nil
+				return next, nil
 			}
 
-			if sort.StringSlice([]string{c.Name, n2.Name}).Less(0, 1) {
-				return Terminate, nil
+			if sort.StringSlice([]string{c.name, n2.name}).Less(0, 1) {
+				return terminate, nil
 			}
 
 			previousNode = n2
 
-			if n2.Type == DIRNODE {
-				return SkipChildren, nil
+			if n2.t == DIRNODE {
+				return skipChildren, nil
 			}
 
-			return Next, nil
+			return next, nil
 		})
 
 		if previousNode == nil {
-			n.FirstChild.Previous = c
-			c.Next = n.FirstChild
-			n.FirstChild = c
+			n.firstChild.previous = c
+			c.next = n.firstChild
+			n.firstChild = c
 		} else {
-			c.Previous = previousNode
-			c.Next = previousNode.Next
-			if previousNode.Next != nil {
-				previousNode.Next.Previous = c
+			c.previous = previousNode
+			c.next = previousNode.next
+			if previousNode.next != nil {
+				previousNode.next.previous = c
 			}
 
-			previousNode.Next = c
+			previousNode.next = c
 		}
 	}
 
-	c.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
-		n.Path = path.Join(n.Parent.Path, n.Name)
+	c.traverse(func(n *assetsTreeNode) (traverseStatus, error) {
+		n.path = path.Join(n.parent.path, n.name)
 
-		return Next, nil
+		return next, nil
 	})
 
 	return c
 }
 
-// LastChild returns the last child of n.
-func (n *AssetsTreeNode) LastChild() *AssetsTreeNode {
-	if n.FirstChild == nil {
+func (n *assetsTreeNode) lastChild() *assetsTreeNode {
+	if n.firstChild == nil {
 		return nil
 	}
 
-	lastChild := n.FirstChild
+	lastChild := n.firstChild
 
-	for lastChild.Next != nil {
-		lastChild = lastChild.Next
+	for lastChild.next != nil {
+		lastChild = lastChild.next
 	}
 
 	return lastChild
 }
 
-func (n *AssetsTreeNode) addSize(width int) {
+/* sizes */
+
+func (n *assetsTreeNode) addSize(width int) {
 	originalSize := n.findOriginalSize()
 
 	if originalSize.width < width {
@@ -327,13 +325,23 @@ func (n *AssetsTreeNode) addSize(width int) {
 		}
 	}
 
-	n.sizes = append(n.sizes, &imgNodeSize{
+	n.sizes = append(n.sizes, &assetsTreeNodeImgSize{
 		width: width,
 	})
 }
 
-func (n *AssetsTreeNode) findOriginalSize() *imgNodeSize {
-	if n.Type != IMGNODE {
+func (n *assetsTreeNode) findSize(width int) *assetsTreeNodeImgSize {
+	for _, size := range n.sizes {
+		if size.width == width {
+			return size
+		}
+	}
+
+	return nil
+}
+
+func (n *assetsTreeNode) findOriginalSize() *assetsTreeNodeImgSize {
+	if n.t != IMGNODE {
 		panic("not an img node")
 	}
 
@@ -346,8 +354,12 @@ func (n *AssetsTreeNode) findOriginalSize() *imgNodeSize {
 	return nil
 }
 
-func (n *AssetsTreeNode) generateSizePath(rel bool, size *imgNodeSize) string {
-	ext := filepath.Ext(n.Name)
+func (n *assetsTreeNode) generateSizeProcessedPath(rel bool, size *assetsTreeNodeImgSize) string {
+	if n.t != IMGNODE {
+		panic("not an img node")
+	}
+
+	ext := filepath.Ext(n.name)
 
 	if rel {
 		return path.Join(n.processedRelPath, strconv.Itoa(size.width)+ext)
@@ -356,10 +368,12 @@ func (n *AssetsTreeNode) generateSizePath(rel bool, size *imgNodeSize) string {
 	return path.Join(n.processedPath, strconv.Itoa(size.width)+ext)
 }
 
-// Traverse performs a depth-first pre-order traversal in the tree rooted at n.
+/* traversing */
+
+// traverse performs a depth-first pre-order traversal in the tree rooted at n.
 // If fn returns an error, the traversing is terminated, regardless of the status,
 // and the error is returned.
-func (n *AssetsTreeNode) Traverse(fn AssetsTreeNodeTraverseFn) error {
+func (n *assetsTreeNode) traverse(fn assetsTreeNodeTraverseFn) error {
 	_, err := traverseRec(n, fn)
 	if err != nil {
 		return err
@@ -368,143 +382,204 @@ func (n *AssetsTreeNode) Traverse(fn AssetsTreeNodeTraverseFn) error {
 	return nil
 }
 
-// FindByRelPath searchs for a node whose path, by trimming n's path from the start, is equal to relPath.
-func (n *AssetsTreeNode) FindByRelPath(relPath string) *AssetsTreeNode {
-	segments := strings.Split(relPath, "/")
-
-	n2 := n.FirstChild
-	i := 0
-
-	for {
-		if i+1 > len(segments) || n2 == nil {
-			break
-		}
-
-		if n2.Name == segments[i] {
-			if i+1 == len(segments) {
-				return n2
-			}
-
-			n2 = n2.FirstChild
-			i++
-			continue
-		} else {
-			n2 = n2.Next
-		}
-	}
-
-	return nil
-}
-
-func traverseRec(n *AssetsTreeNode, fn AssetsTreeNodeTraverseFn) (TraverseStatus, error) {
+func traverseRec(n *assetsTreeNode, fn assetsTreeNodeTraverseFn) (traverseStatus, error) {
 	status, err := fn(n)
-	if err != nil || status == Terminate {
-		return Terminate, err
+	if err != nil || status == terminate {
+		return terminate, err
 	}
-	if status == SkipChildren {
-		return SkipChildren, nil
+	if status == skipChildren {
+		return skipChildren, nil
 	}
 
-	c := n.FirstChild
+	c := n.firstChild
 
 	for c != nil {
-		cNext := c.Next
+		cNext := c.next
 
-		switch c.Type {
+		switch c.t {
 		case DIRNODE:
 			status, err := traverseRec(c, fn)
-			if err != nil || status == Terminate {
-				return Terminate, err
+			if err != nil || status == terminate {
+				return terminate, err
 			}
 		case IMGNODE:
 			fallthrough
 		case FILENODE:
 			status, err := fn(c)
 			if err != nil {
-				return Terminate, err
+				return terminate, err
 			}
 
 			switch status {
-			case SkipChildren:
-				return SkipChildren, nil
-			case Terminate:
-				return Terminate, nil
+			case skipChildren:
+				return skipChildren, nil
+			case terminate:
+				return terminate, nil
 			}
 		}
 
 		c = cNext
 	}
 
-	return Next, nil
+	return next, nil
 }
 
-// findByRelPathInGATOrPAT searchs for a node whose path related to the root of the GAT or to
-// the root of the PAT is equal to path. If path starts with /, it searchs in the GAT, otherwise
-// it'll search in the PAT.
-func findByRelPathInGATOrPAT(gat, pat *AssetsTreeNode, relPath AssetRelPath) (n *AssetsTreeNode, searchedInPAT bool) {
-	if len(relPath) == 0 {
-		return nil, false
-	}
+/* processing */
 
-	if relPath[0] == '/' {
-		if gat == nil {
-			return nil, false
+// process processes each node of a tree of assets rooted at n and places the output
+// in outDirPath. Each processed node has its processedRelPath and processedPath properties
+// set.
+func (n *assetsTreeNode) process(outDirPath string, processRoot bool) error {
+	err := n.traverse(func(n2 *assetsTreeNode) (traverseStatus, error) {
+		if n2 == n && !processRoot {
+			return next, nil
 		}
 
-		return gat.FindByRelPath(strings.TrimPrefix(string(relPath), "/")), false
-	}
+		pathWithoutRoot := strings.TrimPrefix(n2.path, n.path+"/")
 
-	if pat == nil {
-		return nil, true
-	}
+		switch n2.t {
+		case IMGNODE:
+			nodeContent, err := n2.getContent()
+			if err != nil {
+				return terminate, err
+			}
 
-	return pat.FindByRelPath(string(relPath)), true
-}
+			md5HashBs := md5.Sum(nodeContent)
+			md5Hash := hex.EncodeToString(md5HashBs[:])
+			pathWithoutRootProcessed := path.Join(pathWithoutRoot, "..", md5Hash)
+			processedPath := path.Join(outDirPath, pathWithoutRootProcessed)
 
-// findNodeByName returns the first node whose name is equal to the given name encountered while traversing n.
-func findNodeByName(n *AssetsTreeNode, name string) *AssetsTreeNode {
-	var res *AssetsTreeNode
+			if err := os.Mkdir(processedPath, os.ModePerm|os.ModeDir); err != nil {
+				return terminate, fmt.Errorf("while creating %v directory: %v", processedPath, err)
+			}
 
-	n.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
-		if n.Name == name {
-			res = n
+			n2.processedRelPath = pathWithoutRootProcessed
+			n2.processedPath = path.Join(outDirPath, pathWithoutRootProcessed)
 
-			return Terminate, nil
+			if err := n2.processSizes(); err != nil {
+				return terminate, err
+			}
+		case FILENODE:
+			ext := filepath.Ext(pathWithoutRoot)
+			pathWithoutRootWithoutExt := strings.TrimSuffix(pathWithoutRoot, ext)
+
+			// md5 hash
+			nodeContent, err := n2.getContent()
+			if err != nil {
+				return terminate, err
+			}
+
+			md5HashBs := md5.Sum(nodeContent)
+			md5Hash := hex.EncodeToString(md5HashBs[:])
+			pathWithoutRootProcessed := pathWithoutRootWithoutExt + "-" + string(md5Hash[:]) + ext
+
+			fileOutPath := path.Join(outDirPath, pathWithoutRootProcessed)
+			fileOut, err := os.Create(fileOutPath)
+			if err != nil {
+				return terminate, err
+			}
+
+			// writing to new file
+			_, err = fileOut.Write(nodeContent)
+			if err != nil {
+				fileOut.Close()
+				return terminate, err
+			}
+
+			fileOut.Close()
+
+			n2.processedRelPath = pathWithoutRootProcessed
+			n2.processedPath = fileOutPath
+		case DIRNODE:
+			processedPath := path.Join(outDirPath, pathWithoutRoot)
+			err := os.Mkdir(processedPath, os.ModeDir|os.ModePerm)
+			if err != nil {
+				return terminate, err
+			}
+
+			n2.processedRelPath = pathWithoutRoot
+			n2.processedPath = processedPath
 		}
 
-		return Next, nil
+		return next, nil
 	})
+	if err != nil {
+		return err
+	}
 
-	return res
+	return nil
 }
 
-var cssFilenameRegExp = regexp.MustCompile("^.*\\.css$")
+// processSizes processes the sizes of an img node.
+func (n *assetsTreeNode) processSizes() error {
+	if n.t != IMGNODE {
+		panic("not an img node")
+	}
 
-func bundleCSSFilesInAT(rootNode *AssetsTreeNode) error {
+	if n.processedPath == "" {
+		panic("node hasn't been processed")
+	}
+
+	nodeContent, err := n.getContent()
+	if err != nil {
+		return fmt.Errorf("while retrieving %v content: %v", n.path, err)
+	}
+
+	for _, size := range n.sizes {
+		if size.processed {
+			continue
+		}
+
+		sizeFilePath := n.generateSizeProcessedPath(false, size)
+		sizeFileContent := nodeContent
+		sizeFile, err := os.Create(sizeFilePath)
+		if err != nil {
+			return fmt.Errorf("while creating %v file", sizeFilePath)
+		}
+
+		if !size.original {
+			sizeFileContent, err = resizeImg(size.width, n.path)
+			if err != nil {
+				return fmt.Errorf("while resizing %v image", n.path)
+			}
+		}
+
+		if _, err := sizeFile.Write(sizeFileContent); err != nil {
+			return fmt.Errorf("while writing to %v file", sizeFilePath)
+		}
+
+		size.processed = true
+	}
+
+	return nil
+}
+
+// processCSSFileNodes processed CSS file nodes with depth = 1.
+func (n *assetsTreeNode) processCSSFileNodes() error {
 	cssContent := make([]byte, 0)
 
-	err := rootNode.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
-		if n == rootNode {
-			return Next, nil
+	err := n.traverse(func(n2 *assetsTreeNode) (traverseStatus, error) {
+		if n2 == n {
+			return next, nil
 		}
 
 		// only nodes whose depth = 1
-		if n.Type == DIRNODE {
-			return SkipChildren, nil
+		if n2.t == DIRNODE {
+			return skipChildren, nil
 		}
 
-		if cssFilenameRegExp.MatchString(n.Name) {
-			cssFileContent, err := n.Content()
+		if cssFilenameRegExp.MatchString(n2.name) {
+			cssFileContent, err := n2.getContent()
 			if err != nil {
-				return Terminate, err
+				return terminate, err
 			}
 
 			cssContent = append(cssContent, cssFileContent...)
 
-			n.RemoveFromTree()
+			n2.removeFromTree()
 		}
 
-		return Next, nil
+		return next, nil
 	})
 	if err != nil {
 		return err
@@ -519,133 +594,99 @@ func bundleCSSFilesInAT(rootNode *AssetsTreeNode) error {
 		return err
 	}
 
-	n := rootNode.AddChild(FILENODE, "style.css")
-	n.SetContent(cssContentMinified)
+	n2 := n.addChild(FILENODE, "style.css")
+	n2.setContent(cssContentMinified)
 
 	return nil
 }
 
-// processAT process each node of a tree of assets rooted at rootNode and places the output
-// in outDirPath. Each processed node has its processedRelPath and processedPath properties
-// set.
-func processAT(rootNode *AssetsTreeNode, outDirPath string, processRoot bool) error {
-	err := rootNode.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
-		if n == rootNode && !processRoot {
-			return Next, nil
+/* asset link */
+
+func (n *assetsTreeNode) assetLink(postSlug string, size *assetsTreeNodeImgSize) string {
+	pathSegments := []string{"/assets"}
+
+	if postSlug != "" {
+		pathSegments = append(pathSegments, postSlug)
+	}
+
+	switch {
+	case size != nil:
+		pathSegments = append(pathSegments, n.generateSizeProcessedPath(true, size))
+	case n.t == IMGNODE:
+		pathSegments = append(pathSegments, n.generateSizeProcessedPath(true, n.findOriginalSize()))
+	default:
+		pathSegments = append(pathSegments, n.processedRelPath)
+	}
+
+	return path.Join(pathSegments...)
+}
+
+/* finding a node */
+
+// findNodeByName returns the first node whose name is equal to the given name encountered while traversing n.
+func (n *assetsTreeNode) findNodeByName(name string) *assetsTreeNode {
+	var res *assetsTreeNode
+
+	n.traverse(func(n *assetsTreeNode) (traverseStatus, error) {
+		if n.name == name {
+			res = n
+
+			return terminate, nil
 		}
 
-		pathWithoutRoot := strings.TrimPrefix(n.Path, rootNode.Path+"/")
-
-		switch n.Type {
-		case IMGNODE:
-			nodeContent, err := n.Content()
-			if err != nil {
-				return Terminate, err
-			}
-
-			md5HashBs := md5.Sum(nodeContent)
-			md5Hash := hex.EncodeToString(md5HashBs[:])
-			pathWithoutRootProcessed := path.Join(pathWithoutRoot, "..", md5Hash)
-			processedPath := path.Join(outDirPath, pathWithoutRootProcessed)
-
-			if err := os.Mkdir(processedPath, os.ModePerm|os.ModeDir); err != nil {
-				return Terminate, fmt.Errorf("while creating %v directory: %v", processedPath, err)
-			}
-
-			n.processedRelPath = pathWithoutRootProcessed
-			n.processedPath = path.Join(outDirPath, pathWithoutRootProcessed)
-
-			processNodeSizes(n)
-		case FILENODE:
-			ext := filepath.Ext(pathWithoutRoot)
-			pathWithoutRootWithoutExt := strings.TrimSuffix(pathWithoutRoot, ext)
-
-			// md5 hash
-			nodeContent, err := n.Content()
-			if err != nil {
-				return Terminate, err
-			}
-
-			md5HashBs := md5.Sum(nodeContent)
-			md5Hash := hex.EncodeToString(md5HashBs[:])
-			pathWithoutRootProcessed := pathWithoutRootWithoutExt + "-" + string(md5Hash[:]) + ext
-
-			fileOutPath := path.Join(outDirPath, pathWithoutRootProcessed)
-			fileOut, err := os.Create(fileOutPath)
-			if err != nil {
-				return Terminate, err
-			}
-
-			// writing to new file
-			_, err = fileOut.Write(nodeContent)
-			if err != nil {
-				fileOut.Close()
-				return Terminate, err
-			}
-
-			fileOut.Close()
-
-			n.processedRelPath = pathWithoutRootProcessed
-			n.processedPath = fileOutPath
-		case DIRNODE:
-			processedPath := path.Join(outDirPath, pathWithoutRoot)
-			err := os.Mkdir(processedPath, os.ModeDir|os.ModePerm)
-			if err != nil {
-				return Terminate, err
-			}
-
-			n.processedRelPath = pathWithoutRoot
-			n.processedPath = processedPath
-		}
-
-		return Next, nil
+		return next, nil
 	})
-	if err != nil {
-		return err
+
+	return res
+}
+
+// findByRelPath searchs for a node whose path, by trimming n's path from the start, is equal to relPath.
+func (n *assetsTreeNode) findByRelPath(relPath string) *assetsTreeNode {
+	segments := strings.Split(relPath, "/")
+
+	n2 := n.firstChild
+	i := 0
+
+	for {
+		if i+1 > len(segments) || n2 == nil {
+			break
+		}
+
+		if n2.name == segments[i] {
+			if i+1 == len(segments) {
+				return n2
+			}
+
+			n2 = n2.firstChild
+			i++
+			continue
+		} else {
+			n2 = n2.next
+		}
 	}
 
 	return nil
 }
 
-func processNodeSizes(n *AssetsTreeNode) error {
-	if n.Type != IMGNODE {
-		panic("not an img node")
+// findByRelPathInGATOrPAT searchs for a node whose path relative to the root of the GAT or to
+// the root of the PAT is equal to path. If path starts with /, it searchs in the GAT, otherwise
+// it'll search in the PAT.
+func findByRelPathInGATOrPAT(gat, pat *assetsTreeNode, relPath AssetRelPath) (n *assetsTreeNode, searchedInPAT bool) {
+	if len(relPath) == 0 {
+		return nil, false
 	}
 
-	if n.processedPath == "" {
-		panic("node hasn't been processed")
+	if relPath[0] == '/' {
+		if gat == nil {
+			return nil, false
+		}
+
+		return gat.findByRelPath(strings.TrimPrefix(string(relPath), "/")), false
 	}
 
-	nodeContent, err := n.Content()
-	if err != nil {
-		return fmt.Errorf("while retrieving %v content: %v", n.Path, err)
+	if pat == nil {
+		return nil, true
 	}
 
-	for _, size := range n.sizes {
-		if size.processed {
-			continue
-		}
-
-		sizeFilePath := n.generateSizePath(false, size)
-		sizeFileContent := nodeContent
-		sizeFile, err := os.Create(sizeFilePath)
-		if err != nil {
-			return fmt.Errorf("while creating %v file", sizeFilePath)
-		}
-
-		if !size.original {
-			sizeFileContent, err = resizeImg(size.width, n.Path)
-			if err != nil {
-				return fmt.Errorf("while resizing %v image", n.Path)
-			}
-		}
-
-		if _, err := sizeFile.Write(sizeFileContent); err != nil {
-			return fmt.Errorf("while writing to %v file", sizeFilePath)
-		}
-
-		size.processed = true
-	}
-
-	return nil
+	return pat.findByRelPath(string(relPath)), true
 }

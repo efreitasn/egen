@@ -83,7 +83,7 @@ type Lang struct {
 
 // AlternateLink is a link to a version of the current page in another language.
 type AlternateLink struct {
-	// relative
+	// URL is a relative URL.
 	URL  string
 	Lang *Lang
 }
@@ -115,7 +115,7 @@ func createBaseTemplateWithIncludes(
 	templateFuncs template.FuncMap,
 	includesInPath string,
 	invisiblePostsByLangTag map[string][]*Post,
-	gat *AssetsTreeNode,
+	gat *assetsTreeNode,
 	url string,
 ) (*template.Template, error) {
 	// funcs
@@ -287,53 +287,26 @@ func generateAlternateLinks(preLangSegments, postLangSegments []string, langs []
 	return links
 }
 
-func nodeSizeAssetLink(n *AssetsTreeNode, postSlug string, s *imgNodeSize, pat bool) string {
-	nodeProcessedRelPath := n.generateSizePath(true, s)
+/* dynamic template funcs */
 
-	if pat {
-		return path.Join("/assets", postSlug, nodeProcessedRelPath)
-	}
-
-	return path.Join("/assets", nodeProcessedRelPath)
-}
-
-func nodeAssetsLink(gat, pat *AssetsTreeNode, postSlug string, assetPath AssetRelPath) (string, *AssetsTreeNode) {
-	if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
-		nodeProcessedRelPath := n.processedRelPath
-		if n.Type == IMGNODE {
-			nodeProcessedRelPath = n.generateSizePath(true, n.findOriginalSize())
-		}
-
-		if searchedInPAT {
-			return path.Join("/assets", postSlug, nodeProcessedRelPath), n
-		}
-
-		return path.Join("/assets", nodeProcessedRelPath), n
-	}
-
-	return "", nil
-}
-
-func generateAssetsLinkFn(gat, pat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) (string, error) {
+func generateAssetsLinkFn(gat, pat *assetsTreeNode, postSlug string) func(assetPath AssetRelPath) (string, error) {
 	return func(assetPath AssetRelPath) (string, error) {
-		if link, n := nodeAssetsLink(gat, pat, postSlug, assetPath); n != nil {
-			return link, nil
+		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
+			if searchedInPAT {
+				return n.assetLink(postSlug, nil), nil
+			}
+
+			return n.assetLink("", nil), nil
 		}
 
 		return "", fmt.Errorf("%v not found in either GAT or PAT", assetPath)
 	}
 }
 
-func generateHasAsset(gat, pat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) bool {
+func generateHasAsset(gat, pat *assetsTreeNode, postSlug string) func(assetPath AssetRelPath) bool {
 	return func(assetPath AssetRelPath) bool {
-		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
-			if searchedInPAT {
-				return true
-			}
+		n, _ := findByRelPathInGATOrPAT(gat, pat, assetPath)
 
-			return true
-		}
-
-		return false
+		return n != nil
 	}
 }

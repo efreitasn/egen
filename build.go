@@ -23,11 +23,11 @@ type BuildConfig struct {
 // Build builds the blog.
 func Build(bc BuildConfig) error {
 	if bc.InPath == "" {
-		return errors.New("inPath not provided")
+		return errors.New("InPath not provided")
 	}
 
 	if bc.OutPath == "" {
-		return errors.New("outPath not provided")
+		return errors.New("OutPath not provided")
 	}
 
 	// deletes bc.OutPath if it already exists
@@ -73,8 +73,8 @@ func Build(bc BuildConfig) error {
 		return err
 	}
 
-	chromaNode := gat.AddChild(FILENODE, "chroma.css")
-	chromaNode.SetContent(chromaStylesBuff.Bytes())
+	chromaNode := gat.addChild(FILENODE, "chroma.css")
+	chromaNode.setContent(chromaStylesBuff.Bytes())
 
 	// assets out
 	assetsOutPath := path.Join(bc.OutPath, "assets")
@@ -85,12 +85,12 @@ func Build(bc BuildConfig) error {
 	}
 
 	// process gat
-	err = bundleCSSFilesInAT(gat)
+	err = gat.processCSSFileNodes()
 	if err != nil {
 		return err
 	}
 
-	err = processAT(gat, assetsOutPath, false)
+	err = gat.process(assetsOutPath, false)
 	if err != nil {
 		return err
 	}

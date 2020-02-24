@@ -45,8 +45,8 @@ type config struct {
 	defaultImgByLangTag map[string]*Img
 }
 
-func readConfigFile(inPath string) (*config, error) {
-	cFilePath := path.Join(inPath, configFilename)
+func readConfigFile(InPath string) (*config, error) {
+	cFilePath := path.Join(InPath, configFilename)
 	cFile, err := os.Open(cFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
