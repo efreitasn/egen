@@ -26,16 +26,16 @@ type Img struct {
 type i18nStrings map[string]string
 
 type configFileData struct {
-	Title             string
-	Description       i18nStrings
-	ImgAlt            i18nStrings `yaml:"imgAlt"`
-	URL               string
-	Color             string
-	Img               AssetRelPath
-	Langs             []*Lang
-	Author            *Author
-	PostImgSizes      []int  `yaml:"postImgSizes"`
-	PostImgMediaQuery string `yaml:"postImgMediaQuery"`
+	Title                   string
+	Description             i18nStrings
+	ImgAlt                  i18nStrings `yaml:"imgAlt"`
+	URL                     string
+	Color                   string
+	Img                     AssetRelPath
+	Langs                   []*Lang
+	Author                  *Author
+	ResponsiveImgSizes      []int  `yaml:"responsiveImgSizes"`
+	ResponsiveImgMediaQueries string `yaml:"responsiveImgMediaQueries"`
 }
 
 type config struct {

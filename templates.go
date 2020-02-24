@@ -40,7 +40,7 @@ var indexHTML = `
 		<meta property="og:description" content="{{ .Description }}">
 	{{ end }}
 	{{ if .Img }}
-		<meta property="og:image:url" content="{{ relToAbsLink (assetsLink .Img.Path) }}">
+		<meta property="og:image:url" content="{{ relToAbsLink (assetLink .Img.Path) }}">
 		<meta property="og:image:alt" content="{{ .Img.Alt }}">
 	{{ end }}
 	{{ if eq .Page "post" }}
@@ -57,13 +57,13 @@ var indexHTML = `
 	<meta property="twitter:creator" content="@{{ .Author.Twitter }}">
 	{{ end }}
 	{{ if hasAsset "/favicon.ico" }}
-		<link rel="icon" type="image/x-icon" href="{{ assetsLink "/favicon.ico" }}">
+		<link rel="icon" type="image/x-icon" href="{{ assetLink "/favicon.ico" }}">
 	{{ end }}
 	{{ range .AlternateLinks -}}
   	<link rel="alternate" hreflang="{{ .Lang.Tag }}" href="{{ relToAbsLink .URL }}">
 	{{- end }}
 	{{ if hasAsset "/style.css" }}
-		<link rel="stylesheet" href="{{ assetsLink "/style.css" }}">
+		<link rel="stylesheet" href="{{ assetLink "/style.css" }}">
 	{{ end }}
 	{{ template "head" . }}
 </head>
@@ -108,7 +108,8 @@ type TemplateData struct {
 	URL string
 	// AlternateLinks is a list of alternate links to be used in meta tags.
 	// It also includes the a link for the current page in the current language.
-	AlternateLinks []*AlternateLink
+	AlternateLinks            []*AlternateLink
+	ResponsiveImgMediaQueries string
 }
 
 func createBaseTemplateWithIncludes(
@@ -117,6 +118,7 @@ func createBaseTemplateWithIncludes(
 	invisiblePostsByLangTag map[string][]*Post,
 	gat *assetsTreeNode,
 	url string,
+	responsiveImgSizes []int,
 ) (*template.Template, error) {
 	// funcs
 	defaultTemplateFuncs := template.FuncMap{
@@ -134,8 +136,9 @@ func createBaseTemplateWithIncludes(
 
 			return nil
 		},
-		"assetsLink": generateAssetsLinkFn(gat, nil, ""),
-		"hasAsset":   generateHasAsset(gat, nil, ""),
+		"assetLink":   generateAssetsLinkFn(gat, nil, ""),
+		"srcSetValue": generateSrcSetValueFn(gat, nil, "", responsiveImgSizes),
+		"hasAsset":    generateHasAsset(gat, nil, ""),
 		"postLinkBySlugAndLang": func(slug string, l *Lang) string {
 			if l.Default {
 				return fmt.Sprintf("/posts/%v", slug)
@@ -308,5 +311,21 @@ func generateHasAsset(gat, pat *assetsTreeNode, postSlug string) func(assetPath 
 		n, _ := findByRelPathInGATOrPAT(gat, pat, assetPath)
 
 		return n != nil
+	}
+}
+
+func generateSrcSetValueFn(gat, pat *assetsTreeNode, postSlug string, widths []int) func(assetPath AssetRelPath) (string, error) {
+	return func(assetPath AssetRelPath) (string, error) {
+		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
+			n.addSizes(widths...)
+
+			if searchedInPAT {
+				return n.generateSrcSetValue(postSlug), nil
+			}
+
+			return n.generateSrcSetValue(""), nil
+		}
+
+		return "", fmt.Errorf("%v not found in either GAT or PAT", assetPath)
 	}
 }

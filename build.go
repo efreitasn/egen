@@ -102,8 +102,8 @@ func Build(bc BuildConfig) error {
 		c.Langs,
 		assetsOutPath,
 		chromaStyle,
-		c.PostImgMediaQuery,
-		c.PostImgSizes,
+		c.ResponsiveImgMediaQueries,
+		c.ResponsiveImgSizes,
 	)
 	if err != nil {
 		return err
@@ -116,6 +116,7 @@ func Build(bc BuildConfig) error {
 		invisiblePostsByLangTag,
 		gat,
 		c.URL,
+		c.ResponsiveImgSizes,
 	)
 	if err != nil {
 		return err
@@ -138,10 +139,11 @@ func Build(bc BuildConfig) error {
 	// executing templates per lang
 	for _, l := range c.Langs {
 		data := TemplateData{
-			Posts:  visiblePostsByLangTag[l.Tag],
-			Lang:   l,
-			Author: c.Author,
-			Color:  c.Color,
+			Posts:                     visiblePostsByLangTag[l.Tag],
+			Lang:                      l,
+			Author:                    c.Author,
+			Color:                     c.Color,
+			ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
 		}
 
 		langOutPath := bc.OutPath
@@ -188,13 +190,14 @@ func Build(bc BuildConfig) error {
 				}
 
 				data := TemplateData{
-					Title:       fmt.Sprintf("%v - %v", p.Title, c.Title),
-					Description: p.Excerpt,
-					Page:        "post",
-					Color:       c.Color,
-					Post:        p,
-					Lang:        l,
-					Author:      c.Author,
+					Title:                     fmt.Sprintf("%v - %v", p.Title, c.Title),
+					Description:               p.Excerpt,
+					Page:                      "post",
+					Color:                     c.Color,
+					Post:                      p,
+					Lang:                      l,
+					Author:                    c.Author,
+					ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
 				}
 
 				if l.Default {
@@ -213,8 +216,9 @@ func Build(bc BuildConfig) error {
 				data.AlternateLinks = generateAlternateLinks(nil, []string{"posts", p.Slug}, c.Langs)
 
 				postPageTemplate.Funcs(map[string]interface{}{
-					"assetsLink": generateAssetsLinkFn(gat, p.pat, p.Slug),
-					"hasAsset":   generateHasAsset(gat, p.pat, p.Slug),
+					"assetLink":   generateAssetsLinkFn(gat, p.pat, p.Slug),
+					"srcSetValue": generateSrcSetValueFn(gat, p.pat, p.Slug, c.ResponsiveImgSizes),
+					"hasAsset":    generateHasAsset(gat, p.pat, p.Slug),
 				})
 
 				err = executePrettifyAndWriteTemplate(postPageTemplate, data, path.Join(postDirPath, "index.html"))

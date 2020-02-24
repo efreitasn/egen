@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -67,8 +66,8 @@ func generatePostsLists(
 	langs []*Lang,
 	assetsOutPath string,
 	chromaStyle *chroma.Style,
-	postImgMediaQuery string,
-	postImgSizes []int,
+	responsiveImgMediaQueries string,
+	responsiveImgSizes []int,
 ) (allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag map[string][]*Post, err error) {
 	postsFileInfos, err := ioutil.ReadDir(postsInPath)
 	if err != nil {
@@ -353,51 +352,38 @@ func generatePostsLists(
 							return blackfriday.Terminate
 						}
 
-						for _, width := range postImgSizes {
-							node.addSize(width)
-						}
+						node.addSizes(responsiveImgSizes...)
+
 						if err := node.processSizes(); err != nil {
 							bfTraverseErr = fmt.Errorf("while processing sizes for %v img: %v", node.path, err)
 
 							return blackfriday.Terminate
 						}
 
-						var srcsetStrB strings.Builder
-						var src string
-
-						// sort the resulting sizes
-						nodeSizesSorted := make([]*assetsTreeNodeImgSize, len(node.sizes))
-						copy(nodeSizesSorted, node.sizes)
-						sort.Slice(nodeSizesSorted, func(i, j int) bool {
-							return nodeSizesSorted[i].width < nodeSizesSorted[j].width
-						})
-
-						for _, size := range nodeSizesSorted {
-							if srcsetStrB.Len() != 0 {
-								srcsetStrB.WriteString(", ")
-							}
-
-							var assetLink string
-							if searchedInPAT {
-								assetLink = node.assetLink(p.Slug, size)
-							} else {
-								assetLink = node.assetLink("", size)
-							}
-
-							if size.original {
-								src = assetLink
-							}
-
-							srcsetStrB.WriteString(
-								fmt.Sprintf("%v %vw", assetLink, size.width),
-							)
-						}
-
-						img := fmt.Sprintf(`<img srcset="%v" sizes="%v" src="%v" alt="%v">`, srcsetStrB.String(), postImgMediaQuery, src, alt)
-						figcaption := ""
-
+						var figcaption string
 						if title != "" {
 							figcaption = fmt.Sprintf("<figcaption>%v</figcaption>", title)
+						}
+
+						var src string
+						if searchedInPAT {
+							src = node.assetLink(postSlug, node.findOriginalSize())
+						} else {
+							src = node.assetLink("", node.findOriginalSize())
+						}
+
+						var img string
+						if responsiveImgMediaQueries != "" {
+							var srcset string
+							if searchedInPAT {
+								srcset = node.generateSrcSetValue(postSlug)
+							} else {
+								srcset = node.generateSrcSetValue("")
+							}
+
+							img = fmt.Sprintf(`<img srcset="%v" sizes="%v" src="%v" alt="%v">`, srcset, responsiveImgMediaQueries, src, alt)
+						} else {
+							img = fmt.Sprintf(`<img src="%v" alt="%v">`, src, alt)
 						}
 
 						htmlBuff.WriteString(

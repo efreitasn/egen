@@ -312,22 +312,24 @@ func (n *assetsTreeNode) lastChild() *assetsTreeNode {
 
 /* sizes */
 
-func (n *assetsTreeNode) addSize(width int) {
+func (n *assetsTreeNode) addSizes(widths ...int) {
 	originalSize := n.findOriginalSize()
 
-	if originalSize.width < width {
-		return
-	}
-
-	for _, size := range n.sizes {
-		if size.width == width {
+	for _, width := range widths {
+		if originalSize.width < width {
 			return
 		}
-	}
 
-	n.sizes = append(n.sizes, &assetsTreeNodeImgSize{
-		width: width,
-	})
+		for _, size := range n.sizes {
+			if size.width == width {
+				return
+			}
+		}
+
+		n.sizes = append(n.sizes, &assetsTreeNodeImgSize{
+			width: width,
+		})
+	}
 }
 
 func (n *assetsTreeNode) findSize(width int) *assetsTreeNodeImgSize {
@@ -366,6 +368,31 @@ func (n *assetsTreeNode) generateSizeProcessedPath(rel bool, size *assetsTreeNod
 	}
 
 	return path.Join(n.processedPath, strconv.Itoa(size.width)+ext)
+}
+
+func (n *assetsTreeNode) generateSrcSetValue(postSlug string) string {
+	var srcsetStrB strings.Builder
+
+	// sort sizes
+	nodeSizesSorted := make([]*assetsTreeNodeImgSize, len(n.sizes))
+	copy(nodeSizesSorted, n.sizes)
+	sort.Slice(nodeSizesSorted, func(i, j int) bool {
+		return nodeSizesSorted[i].width < nodeSizesSorted[j].width
+	})
+
+	for _, size := range nodeSizesSorted {
+		if srcsetStrB.Len() != 0 {
+			srcsetStrB.WriteString(", ")
+		}
+
+		assetLink := n.assetLink(postSlug, size)
+
+		srcsetStrB.WriteString(
+			fmt.Sprintf("%v %vw", assetLink, size.width),
+		)
+	}
+
+	return srcsetStrB.String()
 }
 
 /* traversing */
