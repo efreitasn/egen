@@ -10,6 +10,12 @@ imgAlt:
 author:
   name: John Doe
   twitter: johndoe
+postImgSizes:
+  - 250
+  - 500
+  - 900
+  - 1000
+postImgMediaQuery: "(max-width: 1000px) 100vw; 1000px"
 langs:
   - tag: en
     name: English

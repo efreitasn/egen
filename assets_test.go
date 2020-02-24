@@ -43,13 +43,19 @@ func TestGenerateAssetsTree(t *testing.T) {
 	}
 	fooNode.Next = imgsDirNode
 
-	redNode := &AssetsTreeNode{
-		Type:   FILENODE,
+	redImgNode := &AssetsTreeNode{
+		Type:   IMGNODE,
 		Name:   "red.png",
 		Parent: imgsDirNode,
 		Path:   path.Join(imgsDirNode.Path, "red.png"),
+		sizes: []*imgNodeSize{
+			&imgNodeSize{
+				original: true,
+				width:    1920,
+			},
+		},
 	}
-	imgsDirNode.FirstChild = redNode
+	imgsDirNode.FirstChild = redImgNode
 
 	rootNode2 := &AssetsTreeNode{
 		Type: DIRNODE,

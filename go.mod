@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/alecthomas/chroma v0.7.1
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/tdewolff/minify v2.3.6+incompatible
 	github.com/tdewolff/parse v2.3.4+incompatible // indirect

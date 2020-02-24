@@ -102,6 +102,8 @@ func Build(bc BuildConfig) error {
 		c.Langs,
 		assetsOutPath,
 		chromaStyle,
+		c.PostImgMediaQuery,
+		c.PostImgSizes,
 	)
 	if err != nil {
 		return err

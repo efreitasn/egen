@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +67,8 @@ func generatePostsLists(
 	langs []*Lang,
 	assetsOutPath string,
 	chromaStyle *chroma.Style,
+	postImgMediaQuery string,
+	postImgSizes []int,
 ) (allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag map[string][]*Post, err error) {
 	postsFileInfos, err := ioutil.ReadDir(postsInPath)
 	if err != nil {
@@ -268,14 +271,14 @@ func generatePostsLists(
 
 			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
 			var bfTraverseErr error
-			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+			rootNode.Walk(func(bfNode *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 				switch {
-				case node.Type == blackfriday.CodeBlock && entering:
-					if !mdCodeBlockInfoRegExp.Match(node.Info) {
+				case bfNode.Type == blackfriday.CodeBlock && entering:
+					if !mdCodeBlockInfoRegExp.Match(bfNode.Info) {
 						return blackfriday.GoToNext
 					}
 
-					cbInfoMatches := mdCodeBlockInfoRegExp.FindStringSubmatch(string(node.Info))
+					cbInfoMatches := mdCodeBlockInfoRegExp.FindStringSubmatch(string(bfNode.Info))
 					lang := cbInfoMatches[1]
 
 					hLines := make([][2]int, 0)
@@ -308,7 +311,7 @@ func generatePostsLists(
 						return blackfriday.Terminate
 					}
 
-					iterator, _ := lexer.Tokenise(nil, string(node.Literal))
+					iterator, _ := lexer.Tokenise(nil, string(bfNode.Literal))
 					formatter := chromaHTML.New(
 						chromaHTML.WithClasses(true),
 						chromaHTML.HighlightLines(hLines),
@@ -333,25 +336,53 @@ func generatePostsLists(
 					}
 
 					return blackfriday.GoToNext
-				case node.Type == blackfriday.Image && entering:
+				case bfNode.Type == blackfriday.Image && entering:
 					// the image element is only added if its alt
 					// attribute has been set.
-					if node.FirstChild != nil {
-						title := string(node.Title)
-						alt := string(node.FirstChild.Literal)
+					if bfNode.FirstChild != nil {
+						title := string(bfNode.Title)
+						alt := string(bfNode.FirstChild.Literal)
 
-						src, err := generateAssetsLinkFn(gat, p.pat, p.Slug)(AssetRelPath(node.LinkData.Destination))
-						if err != nil {
+						node, searchedInPAT := findByRelPathInGATOrPAT(gat, p.pat, AssetRelPath(bfNode.LinkData.Destination))
+						if node == nil {
 							bfTraverseErr = fmt.Errorf(
-								"%v post: %v",
+								"%v img not found in %v post",
+								string(bfNode.LinkData.Destination),
 								p.Slug,
-								err,
 							)
 
 							return blackfriday.Terminate
 						}
 
-						img := fmt.Sprintf(`<img src="%v" alt="%v">`, src, alt)
+						for _, width := range postImgSizes {
+							node.addSize(width)
+						}
+						if err := processNodeSizes(node); err != nil {
+							bfTraverseErr = fmt.Errorf("while processing sizes for %v img: %v", node.Path, err)
+
+							return blackfriday.Terminate
+						}
+
+						var srcsetStrB strings.Builder
+						nodeSizesSorted := make([]*imgNodeSize, len(node.sizes))
+						copy(nodeSizesSorted, node.sizes)
+
+						sort.Slice(nodeSizesSorted, func(i, j int) bool {
+							return nodeSizesSorted[i].width < nodeSizesSorted[j].width
+						})
+
+						for _, size := range nodeSizesSorted {
+							if srcsetStrB.Len() != 0 {
+								srcsetStrB.WriteString(", ")
+							}
+
+							srcsetStrB.WriteString(
+								fmt.Sprintf("%v %vw", nodeSizeAssetLink(node, p.Slug, size, searchedInPAT), size.width),
+							)
+						}
+
+						src := nodeSizeAssetLink(node, p.Slug, node.findOriginalSize(), searchedInPAT)
+						img := fmt.Sprintf(`<img srcset="%v" sizes="%v" src="%v" alt="%v">`, srcsetStrB.String(), postImgMediaQuery, src, alt)
 						figcaption := ""
 
 						if title != "" {
@@ -359,19 +390,19 @@ func generatePostsLists(
 						}
 
 						htmlBuff.WriteString(
-							fmt.Sprintf("<figure>%v%v</figure>", img, figcaption),
+							fmt.Sprintf(`<figure><a href="%v">%v</a>%v</figure>`, src, img, figcaption),
 						)
 					}
 
 					return blackfriday.SkipChildren
-				case node.Type == blackfriday.Paragraph:
-					if len(strings.Trim(string(node.FirstChild.Literal), "\n\t ")) == 0 {
+				case bfNode.Type == blackfriday.Paragraph:
+					if len(strings.Trim(string(bfNode.FirstChild.Literal), "\n\t ")) == 0 {
 						return blackfriday.GoToNext
 					}
 
-					return r.RenderNode(&htmlBuff, node, entering)
+					return r.RenderNode(&htmlBuff, bfNode, entering)
 				default:
-					return r.RenderNode(&htmlBuff, node, entering)
+					return r.RenderNode(&htmlBuff, bfNode, entering)
 				}
 			})
 			if bfTraverseErr != nil {

@@ -287,14 +287,37 @@ func generateAlternateLinks(preLangSegments, postLangSegments []string, langs []
 	return links
 }
 
+func nodeSizeAssetLink(n *AssetsTreeNode, postSlug string, s *imgNodeSize, pat bool) string {
+	nodeProcessedRelPath := n.generateSizePath(true, s)
+
+	if pat {
+		return path.Join("/assets", postSlug, nodeProcessedRelPath)
+	}
+
+	return path.Join("/assets", nodeProcessedRelPath)
+}
+
+func nodeAssetsLink(gat, pat *AssetsTreeNode, postSlug string, assetPath AssetRelPath) (string, *AssetsTreeNode) {
+	if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
+		nodeProcessedRelPath := n.processedRelPath
+		if n.Type == IMGNODE {
+			nodeProcessedRelPath = n.generateSizePath(true, n.findOriginalSize())
+		}
+
+		if searchedInPAT {
+			return path.Join("/assets", postSlug, nodeProcessedRelPath), n
+		}
+
+		return path.Join("/assets", nodeProcessedRelPath), n
+	}
+
+	return "", nil
+}
+
 func generateAssetsLinkFn(gat, pat *AssetsTreeNode, postSlug string) func(assetPath AssetRelPath) (string, error) {
 	return func(assetPath AssetRelPath) (string, error) {
-		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
-			if searchedInPAT {
-				return path.Join("/assets", postSlug, n.processedRelPath), nil
-			}
-
-			return path.Join("/assets", n.processedRelPath), nil
+		if link, n := nodeAssetsLink(gat, pat, postSlug, assetPath); n != nil {
+			return link, nil
 		}
 
 		return "", fmt.Errorf("%v not found in either GAT or PAT", assetPath)

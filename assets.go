@@ -3,12 +3,14 @@ package egen
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/tdewolff/minify"
@@ -22,7 +24,10 @@ type AssetsTreeNodeType int
 const (
 	FILENODE AssetsTreeNodeType = iota
 	DIRNODE
+	IMGNODE
 )
+
+var imgNodeNameRegExp = regexp.MustCompile(".+\\.(jpg|jpeg|png)")
 
 // AssetRelPath is the path of an asset relative to the global assets
 // tree (GAT) or to a post-wise assets tree (PAT). The former happens
@@ -39,6 +44,12 @@ const (
 	SkipChildren                       // Skip the current node's children
 	Terminate                          // Terminate the traversal
 )
+
+type imgNodeSize struct {
+	original  bool
+	width     int
+	processed bool
+}
 
 // AssetsTreeNodeTraverseFn is the function executed for each one in a tree traversal.
 type AssetsTreeNodeTraverseFn func(n *AssetsTreeNode) (TraverseStatus, error)
@@ -57,6 +68,7 @@ type AssetsTreeNode struct {
 	FirstChild *AssetsTreeNode
 	Next       *AssetsTreeNode
 	Previous   *AssetsTreeNode
+	sizes      []*imgNodeSize
 	// processedPath is the node's path after processing. The path doesn't necessarily starts
 	// with the tree's root's path, since it starts with the outDirPath value provided when
 	// processing the tree.
@@ -119,7 +131,27 @@ fileInfosLoop:
 			}
 		}
 
-		if fileInfo.IsDir() {
+		switch {
+		case imgNodeNameRegExp.MatchString(nodeName):
+			nodePath := path.Join(rootNode.Path, nodeName)
+
+			width, _, err := imgDimensions(nodePath)
+			if err != nil {
+				return err
+			}
+
+			node = &AssetsTreeNode{
+				Type: IMGNODE,
+				Name: nodeName,
+				Path: nodePath,
+				sizes: []*imgNodeSize{
+					&imgNodeSize{
+						original: true,
+						width:    width,
+					},
+				},
+			}
+		case fileInfo.IsDir():
 			node = &AssetsTreeNode{
 				Type: DIRNODE,
 				Name: nodeName,
@@ -130,7 +162,7 @@ fileInfosLoop:
 			if err != nil {
 				return err
 			}
-		} else {
+		default:
 			node = &AssetsTreeNode{
 				Type: FILENODE,
 				Name: nodeName,
@@ -155,8 +187,8 @@ fileInfosLoop:
 // Content returns the content of n.
 // If the node is not a file, it panics.
 func (n *AssetsTreeNode) Content() ([]byte, error) {
-	if n.Type != FILENODE {
-		panic("not a file node")
+	if n.Type != FILENODE && n.Type != IMGNODE {
+		panic("not a file or img node")
 	}
 
 	if n.content != nil {
@@ -282,6 +314,48 @@ func (n *AssetsTreeNode) LastChild() *AssetsTreeNode {
 	return lastChild
 }
 
+func (n *AssetsTreeNode) addSize(width int) {
+	originalSize := n.findOriginalSize()
+
+	if originalSize.width < width {
+		return
+	}
+
+	for _, size := range n.sizes {
+		if size.width == width {
+			return
+		}
+	}
+
+	n.sizes = append(n.sizes, &imgNodeSize{
+		width: width,
+	})
+}
+
+func (n *AssetsTreeNode) findOriginalSize() *imgNodeSize {
+	if n.Type != IMGNODE {
+		panic("not an img node")
+	}
+
+	for _, size := range n.sizes {
+		if size.original {
+			return size
+		}
+	}
+
+	return nil
+}
+
+func (n *AssetsTreeNode) generateSizePath(rel bool, size *imgNodeSize) string {
+	ext := filepath.Ext(n.Name)
+
+	if rel {
+		return path.Join(n.processedRelPath, strconv.Itoa(size.width)+ext)
+	}
+
+	return path.Join(n.processedPath, strconv.Itoa(size.width)+ext)
+}
+
 // Traverse performs a depth-first pre-order traversal in the tree rooted at n.
 // If fn returns an error, the traversing is terminated, regardless of the status,
 // and the error is returned.
@@ -342,6 +416,8 @@ func traverseRec(n *AssetsTreeNode, fn AssetsTreeNodeTraverseFn) (TraverseStatus
 			if err != nil || status == Terminate {
 				return Terminate, err
 			}
+		case IMGNODE:
+			fallthrough
 		case FILENODE:
 			status, err := fn(c)
 			if err != nil {
@@ -383,6 +459,23 @@ func findByRelPathInGATOrPAT(gat, pat *AssetsTreeNode, relPath AssetRelPath) (n 
 	}
 
 	return pat.FindByRelPath(string(relPath)), true
+}
+
+// findNodeByName returns the first node whose name is equal to the given name encountered while traversing n.
+func findNodeByName(n *AssetsTreeNode, name string) *AssetsTreeNode {
+	var res *AssetsTreeNode
+
+	n.Traverse(func(n *AssetsTreeNode) (TraverseStatus, error) {
+		if n.Name == name {
+			res = n
+
+			return Terminate, nil
+		}
+
+		return Next, nil
+	})
+
+	return res
 }
 
 var cssFilenameRegExp = regexp.MustCompile("^.*\\.css$")
@@ -444,6 +537,25 @@ func processAT(rootNode *AssetsTreeNode, outDirPath string, processRoot bool) er
 		pathWithoutRoot := strings.TrimPrefix(n.Path, rootNode.Path+"/")
 
 		switch n.Type {
+		case IMGNODE:
+			nodeContent, err := n.Content()
+			if err != nil {
+				return Terminate, err
+			}
+
+			md5HashBs := md5.Sum(nodeContent)
+			md5Hash := hex.EncodeToString(md5HashBs[:])
+			pathWithoutRootProcessed := path.Join(pathWithoutRoot, "..", md5Hash)
+			processedPath := path.Join(outDirPath, pathWithoutRootProcessed)
+
+			if err := os.Mkdir(processedPath, os.ModePerm|os.ModeDir); err != nil {
+				return Terminate, fmt.Errorf("while creating %v directory: %v", processedPath, err)
+			}
+
+			n.processedRelPath = pathWithoutRootProcessed
+			n.processedPath = path.Join(outDirPath, pathWithoutRootProcessed)
+
+			processNodeSizes(n)
 		case FILENODE:
 			ext := filepath.Ext(pathWithoutRoot)
 			pathWithoutRootWithoutExt := strings.TrimSuffix(pathWithoutRoot, ext)
@@ -490,6 +602,49 @@ func processAT(rootNode *AssetsTreeNode, outDirPath string, processRoot bool) er
 	})
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func processNodeSizes(n *AssetsTreeNode) error {
+	if n.Type != IMGNODE {
+		panic("not an img node")
+	}
+
+	if n.processedPath == "" {
+		panic("node hasn't been processed")
+	}
+
+	nodeContent, err := n.Content()
+	if err != nil {
+		return fmt.Errorf("while retrieving %v content: %v", n.Path, err)
+	}
+
+	for _, size := range n.sizes {
+		if size.processed {
+			continue
+		}
+
+		sizeFilePath := n.generateSizePath(false, size)
+		sizeFileContent := nodeContent
+		sizeFile, err := os.Create(sizeFilePath)
+		if err != nil {
+			return fmt.Errorf("while creating %v file", sizeFilePath)
+		}
+
+		if !size.original {
+			sizeFileContent, err = resizeImg(size.width, n.Path)
+			if err != nil {
+				return fmt.Errorf("while resizing %v image", n.Path)
+			}
+		}
+
+		if _, err := sizeFile.Write(sizeFileContent); err != nil {
+			return fmt.Errorf("while writing to %v file", sizeFilePath)
+		}
+
+		size.processed = true
 	}
 
 	return nil
