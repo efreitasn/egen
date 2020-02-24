@@ -2,6 +2,5 @@
 title: Third
 excerpt: Lorem ipsum.
 ---
-Ordinary.
-[some](http://foo.bar)
+Ordinary. [some](http://foo.bar)
 ![red](/red.png)

@@ -325,11 +325,7 @@ func generatePostsLists(
 						return blackfriday.Terminate
 					}
 
-					if _, err = htmlBuff.Write(bytes.ReplaceAll(
-						formattedCode.Bytes(),
-						[]byte(`<pre`),
-						[]byte(`<pre data-htmlp-ignore`),
-					)); err != nil {
+					if _, err = htmlBuff.Write(formattedCode.Bytes()); err != nil {
 						bfTraverseErr = err
 
 						return blackfriday.Terminate
@@ -399,6 +395,9 @@ func generatePostsLists(
 					if len(strings.Trim(string(bfNode.FirstChild.Literal), "\n\t ")) == 0 {
 						return blackfriday.GoToNext
 					}
+
+					bfNode.FirstChild.Literal = bytes.TrimLeft(bfNode.FirstChild.Literal, "\n\t ")
+					bfNode.LastChild.Literal = bytes.TrimRight(bfNode.LastChild.Literal, "\n\t ")
 
 					return r.RenderNode(&htmlBuff, bfNode, entering)
 				default:

@@ -9,6 +9,9 @@ import (
 	"golang.org/x/net/html"
 )
 
+var tagsWhoseContentDoesntNeedIndentation = regexp.MustCompile("^(?:pre|p|h1|h2|h3|h4|h5|h6)$")
+var ingoreAttrRx = regexp.MustCompile(".* data-htmlp-ignore.*")
+
 // Pretty prettifies the given HTML.
 func Pretty(data []byte) ([]byte, error) {
 	r := bytes.NewReader(data)
@@ -31,8 +34,9 @@ func Pretty(data []byte) ([]byte, error) {
 func renderToken(t *html.Tokenizer, w *bytes.Buffer, depth int) error {
 	tt := t.Next()
 
-	tag, _ := t.TagName()
-	void := isVoid(string(tag))
+	tagBs, _ := t.TagName()
+	tag := string(tagBs)
+	void := isVoid(tag)
 
 	switch tt {
 	case html.ErrorToken:
@@ -45,24 +49,26 @@ func renderToken(t *html.Tokenizer, w *bytes.Buffer, depth int) error {
 
 		w.WriteString(strings.Repeat("  ", depth))
 
-		if containsIgnoreAttr(r) {
+		if containsIgnoreAttr(r) || tagsWhoseContentDoesntNeedIndentation.MatchString(tag) {
 			r = removeIgnoreAttr(r)
 			w.Write(r)
 
-			for {
-				tt := t.Next()
-				childTag, _ := t.TagName()
+			if !void {
+				for {
+					tt := t.Next()
+					childTag, _ := t.TagName()
 
-				if tt == html.ErrorToken {
-					break
-				}
+					if tt == html.ErrorToken {
+						break
+					}
 
-				w.Write(t.Raw())
+					w.Write(t.Raw())
 
-				if tt == html.EndTagToken && string(tag) == string(childTag) {
-					w.WriteString("\n")
+					if tt == html.EndTagToken && tag == string(childTag) {
+						w.WriteString("\n")
 
-					break
+						break
+					}
 				}
 			}
 		} else {
@@ -112,8 +118,6 @@ func isVoid(tag string) bool {
 		tag == "track" ||
 		tag == "wbr")
 }
-
-var ingoreAttrRx = regexp.MustCompile(".* data-htmlp-ignore.*")
 
 func containsIgnoreAttr(bs []byte) bool {
 	return ingoreAttrRx.Match(bs)
