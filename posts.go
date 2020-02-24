@@ -25,7 +25,7 @@ var postContentRegExp = regexp.MustCompile("(?s)^---\n(.*?)\n---(.*)")
 
 var nonPostAssetsRxs = []*regexp.Regexp{
 	regexp.MustCompile("content_.+\\.md"),
-	regexp.MustCompile("data.yaml"),
+	regexp.MustCompile("data\\.yaml"),
 	// ignore all directories
 	regexp.MustCompile(".*/$"),
 }
