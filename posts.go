@@ -185,6 +185,14 @@ func generatePostsLists(
 				return nil, nil, nil, fmt.Errorf("parsing YAML content of %v: %v", postContentFilePath, err)
 			}
 
+			if yamlData.Title == "" {
+				return nil, nil, nil, fmt.Errorf("title field in %v post frontmatter in %v cannot be empty", p.Slug, l.Tag)
+			}
+
+			if yamlData.Excerpt == "" {
+				return nil, nil, nil, fmt.Errorf("excerpt field in %v post frontmatter in %v cannot be empty", p.Slug, l.Tag)
+			}
+
 			p.Title = yamlData.Title
 			p.Excerpt = yamlData.Excerpt
 
@@ -335,61 +343,63 @@ func generatePostsLists(
 
 					return blackfriday.GoToNext
 				case bfNode.Type == blackfriday.Image && entering:
-					// the image element is only added if its alt
-					// attribute has been set.
-					if bfNode.FirstChild != nil {
-						title := string(bfNode.Title)
-						alt := string(bfNode.FirstChild.Literal)
+					if bfNode.FirstChild == nil || string(bfNode.FirstChild.Literal) == "" {
+						bfTraverseErr = fmt.Errorf("%v img in %v post in %v must have an alt attribute", string(bfNode.LinkData.Destination), p.Slug, l.Tag)
 
-						node, searchedInPAT := findByRelPathInGATOrPAT(gat, p.pat, AssetRelPath(bfNode.LinkData.Destination))
-						if node == nil {
-							bfTraverseErr = fmt.Errorf(
-								"%v img not found in %v post",
-								string(bfNode.LinkData.Destination),
-								p.Slug,
-							)
-
-							return blackfriday.Terminate
-						}
-
-						node.addSizes(responsiveImgSizes...)
-
-						if err := node.processSizes(); err != nil {
-							bfTraverseErr = fmt.Errorf("while processing sizes for %v img: %v", node.path, err)
-
-							return blackfriday.Terminate
-						}
-
-						var figcaption string
-						if title != "" {
-							figcaption = fmt.Sprintf("<figcaption>%v</figcaption>", title)
-						}
-
-						var src string
-						if searchedInPAT {
-							src = node.assetLink(postSlug, node.findOriginalSize())
-						} else {
-							src = node.assetLink("", node.findOriginalSize())
-						}
-
-						var img string
-						if responsiveImgMediaQueries != "" {
-							var srcset string
-							if searchedInPAT {
-								srcset = node.generateSrcSetValue(postSlug)
-							} else {
-								srcset = node.generateSrcSetValue("")
-							}
-
-							img = fmt.Sprintf(`<img srcset="%v" sizes="%v" src="%v" alt="%v">`, srcset, responsiveImgMediaQueries, src, alt)
-						} else {
-							img = fmt.Sprintf(`<img src="%v" alt="%v">`, src, alt)
-						}
-
-						htmlBuff.WriteString(
-							fmt.Sprintf(`<figure><a href="%v">%v</a>%v</figure>`, src, img, figcaption),
-						)
+						return blackfriday.Terminate
 					}
+
+					title := string(bfNode.Title)
+					alt := string(bfNode.FirstChild.Literal)
+
+					node, searchedInPAT := findByRelPathInGATOrPAT(gat, p.pat, AssetRelPath(bfNode.LinkData.Destination))
+					if node == nil {
+						bfTraverseErr = fmt.Errorf(
+							"%v img not found in %v post",
+							string(bfNode.LinkData.Destination),
+							p.Slug,
+						)
+
+						return blackfriday.Terminate
+					}
+
+					node.addSizes(responsiveImgSizes...)
+
+					if err := node.processSizes(); err != nil {
+						bfTraverseErr = fmt.Errorf("while processing sizes for %v img: %v", node.path, err)
+
+						return blackfriday.Terminate
+					}
+
+					var figcaption string
+					if title != "" {
+						figcaption = fmt.Sprintf("<figcaption>%v</figcaption>", title)
+					}
+
+					var src string
+					if searchedInPAT {
+						src = node.assetLink(postSlug, node.findOriginalSize())
+					} else {
+						src = node.assetLink("", node.findOriginalSize())
+					}
+
+					var img string
+					if responsiveImgMediaQueries != "" {
+						var srcset string
+						if searchedInPAT {
+							srcset = node.generateSrcSetValue(postSlug)
+						} else {
+							srcset = node.generateSrcSetValue("")
+						}
+
+						img = fmt.Sprintf(`<img srcset="%v" sizes="%v" src="%v" alt="%v">`, srcset, responsiveImgMediaQueries, src, alt)
+					} else {
+						img = fmt.Sprintf(`<img src="%v" alt="%v">`, src, alt)
+					}
+
+					htmlBuff.WriteString(
+						fmt.Sprintf(`<figure><a href="%v">%v</a>%v</figure>`, src, img, figcaption),
+					)
 
 					return blackfriday.SkipChildren
 				case bfNode.Type == blackfriday.Paragraph:

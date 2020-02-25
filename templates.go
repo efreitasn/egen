@@ -52,9 +52,11 @@ var indexHTML = `
 	{{ if .Img }}
 		<meta property="twitter:image:alt" content="{{ .Img.Alt }}">
 	{{ end }}
-	<meta property="twitter:site" content="@{{ .Author.Twitter }}">
-	{{ if eq .Page "post" }}
-	<meta property="twitter:creator" content="@{{ .Author.Twitter }}">
+	{{ if .Author.Twitter }}
+		<meta property="twitter:site" content="@{{ .Author.Twitter }}">
+		{{ if eq .Page "post" }}
+			<meta property="twitter:creator" content="@{{ .Author.Twitter }}">
+		{{ end }}
 	{{ end }}
 	{{ if hasAsset "/icon.png" }}
 		<link rel="icon" href="{{ assetLink "/icon.png" }}">

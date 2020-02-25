@@ -1,6 +1,7 @@
 package egen
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -26,15 +27,15 @@ type Img struct {
 type i18nStrings map[string]string
 
 type configFileData struct {
-	Title                   string
-	Description             i18nStrings
-	ImgAlt                  i18nStrings `yaml:"imgAlt"`
-	URL                     string
-	Color                   string
-	Img                     AssetRelPath
-	Langs                   []*Lang
-	Author                  *Author
-	ResponsiveImgSizes      []int  `yaml:"responsiveImgSizes"`
+	Title                     string
+	Description               i18nStrings
+	ImgAlt                    i18nStrings `yaml:"imgAlt"`
+	URL                       string
+	Color                     string
+	Img                       AssetRelPath
+	Langs                     []*Lang
+	Author                    *Author
+	ResponsiveImgSizes        []int  `yaml:"responsiveImgSizes"`
 	ResponsiveImgMediaQueries string `yaml:"responsiveImgMediaQueries"`
 }
 
@@ -63,6 +64,20 @@ func readConfigFile(InPath string) (*config, error) {
 		return nil, fmt.Errorf("error while parsing the contents of config file: %v", err)
 	}
 
+	// checkings
+	switch {
+	case cFileData.Title == "":
+		return nil, errors.New("title field in config file cannot be empty")
+	case cFileData.URL == "":
+		return nil, errors.New("url field in config file cannot be empty")
+	case len(cFileData.Langs) == 0:
+		return nil, errors.New("langs field in config file cannot be empty")
+	case cFileData.Author == nil:
+		return nil, errors.New("author field in config file cannot be empty")
+	case cFileData.Author.Name == "":
+		return nil, errors.New("author.name field in config file cannot be empty")
+	}
+
 	var c config
 
 	// default img
@@ -72,12 +87,12 @@ func readConfigFile(InPath string) (*config, error) {
 	// default lang
 	for _, lang := range cFileData.Langs {
 		if cFileData.Description[lang.Tag] == "" {
-			return nil, fmt.Errorf("description in %v not provided", lang.Tag)
+			return nil, fmt.Errorf("description in %v in config file not provided", lang.Tag)
 		}
 
 		if cFileData.Img != "" {
 			if cFileData.ImgAlt[lang.Tag] == "" {
-				return nil, fmt.Errorf("alt for default image in %v not provided", lang.Tag)
+				return nil, fmt.Errorf("alt for default image in %v in config file not provided", lang.Tag)
 			}
 
 			c.defaultImgByLangTag[lang.Tag] = &Img{
@@ -89,6 +104,10 @@ func readConfigFile(InPath string) (*config, error) {
 		if lang.Default {
 			c.defaultLang = lang
 		}
+	}
+
+	if c.defaultLang == nil {
+		return nil, errors.New("there must a default lang in the config file")
 	}
 
 	return &c, nil
