@@ -169,7 +169,7 @@ func Build(bc BuildConfig) error {
 		// alternate links
 		data.AlternateLinks = generateAlternateLinks(nil, nil, c.Langs)
 
-		err := executePrettifyAndWriteTemplate(homePageTemplate, data, path.Join(langOutPath, "index.html"))
+		err := executeMinifyAndWriteTemplate(homePageTemplate, data, path.Join(langOutPath, "index.html"))
 		if err != nil {
 			return err
 		}
@@ -221,7 +221,7 @@ func Build(bc BuildConfig) error {
 					"hasAsset":    generateHasAsset(gat, p.pat, p.Slug),
 				})
 
-				err = executePrettifyAndWriteTemplate(postPageTemplate, data, path.Join(postDirPath, "index.html"))
+				err = executeMinifyAndWriteTemplate(postPageTemplate, data, path.Join(postDirPath, "index.html"))
 				if err != nil {
 					return err
 				}

@@ -12,7 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/efreitasn/egen/htmlp"
+	"github.com/tdewolff/minify/v2"
+	"github.com/tdewolff/minify/v2/html"
 )
 
 var htmlFilenameRegExp = regexp.MustCompile(".*\\.html")
@@ -229,7 +230,7 @@ func createPageTemplate(pagesInPath string, baseTemplate *template.Template, pag
 	), nil
 }
 
-func executePrettifyAndWriteTemplate(t *template.Template, tData TemplateData, outFilePath string) error {
+func executeMinifyAndWriteTemplate(t *template.Template, tData TemplateData, outFilePath string) error {
 	outFile, err := os.Create(outFilePath)
 	if err != nil {
 		return err
@@ -242,11 +243,18 @@ func executePrettifyAndWriteTemplate(t *template.Template, tData TemplateData, o
 		return err
 	}
 
-	htmlPretty, err := htmlp.Pretty(buff.Bytes())
+	m := minify.New()
+	m.Add("text/html", &html.Minifier{
+		KeepDocumentTags: true,
+		KeepQuotes:       true,
+		KeepEndTags:      true,
+	})
+
+	htmlMinified, err := m.Bytes("text/html", buff.Bytes())
 	if err != nil {
 		return err
 	}
-	if _, err = outFile.Write(htmlPretty); err != nil {
+	if _, err = outFile.Write(htmlMinified); err != nil {
 		return err
 	}
 

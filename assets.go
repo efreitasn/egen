@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tdewolff/minify"
-	"github.com/tdewolff/minify/css"
+	"github.com/tdewolff/minify/v2"
+	"github.com/tdewolff/minify/v2/css"
 )
 
 // assetsTreeNodeType is the type of a node in a tree of assets.
