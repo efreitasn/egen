@@ -381,6 +381,10 @@ func (n *assetsTreeNode) generateSrcSetValue(postSlug string) string {
 	})
 
 	for _, size := range nodeSizesSorted {
+		if !size.processed {
+			continue
+		}
+
 		if srcsetStrB.Len() != 0 {
 			srcsetStrB.WriteString(", ")
 		}
