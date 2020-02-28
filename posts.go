@@ -403,7 +403,7 @@ func generatePostsLists(
 
 					return blackfriday.SkipChildren
 				case bfNode.Type == blackfriday.Paragraph:
-					if len(strings.Trim(string(bfNode.FirstChild.Literal), "\n\t ")) == 0 {
+					if bfNode.FirstChild == nil || len(strings.Trim(string(bfNode.FirstChild.Literal), "\n\t ")) == 0 {
 						return blackfriday.GoToNext
 					}
 
