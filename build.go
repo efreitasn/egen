@@ -136,16 +136,14 @@ func Build(bc BuildConfig) error {
 		return err
 	}
 
+	// 404 page
+	notFoundPageTemplate, err := createPageTemplate(pagesInPath, baseTemplate, "404")
+	if err != nil {
+		return err
+	}
+
 	// executing templates per lang
 	for _, l := range c.Langs {
-		data := TemplateData{
-			Posts:                     visiblePostsByLangTag[l.Tag],
-			Lang:                      l,
-			Author:                    c.Author,
-			Color:                     c.Color,
-			ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
-		}
-
 		langOutPath := bc.OutPath
 		if !l.Default {
 			langOutPath = path.Join(langOutPath, l.Tag)
@@ -155,23 +153,51 @@ func Build(bc BuildConfig) error {
 		}
 
 		// home page
-		data.Title = c.Title
-		data.Description = c.Description[l.Tag]
-		data.Page = "home"
-		data.Img = c.defaultImgByLangTag[l.Tag]
-
-		if l.Default {
-			data.URL = "/"
-		} else {
-			data.URL = "/" + l.Tag
+		homePageTemplateData := TemplateData{
+			Posts:                     visiblePostsByLangTag[l.Tag],
+			Lang:                      l,
+			Author:                    c.Author,
+			Color:                     c.Color,
+			ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
+			Title:                     c.Title,
+			Description:               c.Description[l.Tag],
+			Page:                      "home",
+			Img:                       c.defaultImgByLangTag[l.Tag],
 		}
 
-		// alternate links
-		data.AlternateLinks = generateAlternateLinks(nil, nil, c.Langs)
+		homePageTemplateData.AlternateLinks = generateAlternateLinks(nil, nil, c.Langs)
 
-		err := executeMinifyAndWriteTemplate(homePageTemplate, data, path.Join(langOutPath, "index.html"))
+		if l.Default {
+			homePageTemplateData.URL = "/"
+		} else {
+			homePageTemplateData.URL = "/" + l.Tag
+		}
+
+		err := executeMinifyAndWriteTemplate(homePageTemplate, homePageTemplateData, path.Join(langOutPath, "index.html"))
 		if err != nil {
 			return err
+		}
+
+		// 404 page
+		// only execute the 404 page's template if it's the default language.
+		if l.Default {
+			notFoundPageTemplateData := TemplateData{
+				Color:                     c.Color,
+				Author:                    c.Author,
+				Description:               c.Description[l.Tag],
+				Img:                       c.defaultImgByLangTag[l.Tag],
+				Lang:                      l,
+				Page:                      "404",
+				Posts:                     visiblePostsByLangTag[l.Tag],
+				Title:                     fmt.Sprintf("Not found - %v", c.Title),
+				ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
+				URL:                       "/404.html",
+			}
+
+			err := executeMinifyAndWriteTemplate(notFoundPageTemplate, notFoundPageTemplateData, path.Join(langOutPath, "404.html"))
+			if err != nil {
+				return err
+			}
 		}
 
 		// post page
@@ -189,7 +215,7 @@ func Build(bc BuildConfig) error {
 					return err
 				}
 
-				data := TemplateData{
+				postPageTemplateData := TemplateData{
 					Title:                     fmt.Sprintf("%v - %v", p.Title, c.Title),
 					Description:               p.Excerpt,
 					Page:                      "post",
@@ -201,20 +227,19 @@ func Build(bc BuildConfig) error {
 					Posts:                     visiblePostsByLangTag[l.Tag],
 				}
 
+				postPageTemplateData.AlternateLinks = generateAlternateLinks(nil, []string{"posts", p.Slug}, c.Langs)
+
 				if l.Default {
-					data.URL = "/posts/" + p.Slug
+					postPageTemplateData.URL = "/posts/" + p.Slug
 				} else {
-					data.URL = "/" + l.Tag + "/posts/" + p.Slug
+					postPageTemplateData.URL = "/" + l.Tag + "/posts/" + p.Slug
 				}
 
 				if p.Img != nil {
-					data.Img = p.Img
+					postPageTemplateData.Img = p.Img
 				} else {
-					data.Img = c.defaultImgByLangTag[l.Tag]
+					postPageTemplateData.Img = c.defaultImgByLangTag[l.Tag]
 				}
-
-				// alternate links
-				data.AlternateLinks = generateAlternateLinks(nil, []string{"posts", p.Slug}, c.Langs)
 
 				postPageTemplate.Funcs(map[string]interface{}{
 					"assetLink":   generateAssetsLinkFn(gat, p.pat, p.Slug),
@@ -222,7 +247,7 @@ func Build(bc BuildConfig) error {
 					"hasAsset":    generateHasAsset(gat, p.pat, p.Slug),
 				})
 
-				err = executeMinifyAndWriteTemplate(postPageTemplate, data, path.Join(postDirPath, "index.html"))
+				err = executeMinifyAndWriteTemplate(postPageTemplate, postPageTemplateData, path.Join(postDirPath, "index.html"))
 				if err != nil {
 					return err
 				}
