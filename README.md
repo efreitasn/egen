@@ -1,9 +1,9 @@
-egen is an opinionated blog generator. It was created mainly to be used in [https://efreitasn.dev](https://efreitasn.dev). Some of its features are (when the word "must" appears, it means that the blog won't build if the specified condition isn't met):
+egen is an opinionated blog generator. It was created mainly to be used in [https://efreitasn.dev](https://efreitasn.dev/posts/a-new-version/). Some of its features are (when the word "must" appears, it means that the blog won't build if the specified condition isn't met):
 
 * Uses Go templates.
 * Every CSS file present in the `<inPath>/assets` directory becomes one single minified CSS file called `style.css` stored in `<outPath>/assets`. The order of concatenation is alphabetically, which means the content of a file named `1.css` will come first in the resulting `style.css` than the content of a file named `a.css`, for example.
 * Every file stored in `<outPath>/assets` is renamed to `<filename_base>-<md5sum(file_content)>.<filename_ext>`, except JPEG and PNG images.
-* Every JPEG and PNG image file present in the `<inPath>/assets` directory become a directory in `<outPath>/assets` whose name is the md5sum of the file. The files in this directory are named `<width>.<png|jpeg|jpeg>`.
+* Every JPEG and PNG image file present in the `<inPath>/assets` directory become a directory in `<outPath>/assets` whose name is the md5sum of the file. The files in this directory are named `<width>.<png|jpg|jpeg>`.
 * Every post must have a version for each language provided in the config file.
 * Every image used in a post must have an alt attribute.
 * The icon of the blog is a file located at `<inPath>/assets/icon.png`.
@@ -84,8 +84,8 @@ content in markdown.
 
 It starts with a YAML frontmatter followed by the post's content in Markdown. The `title` and `excerpt` fields are required, while the `imgAlt` is only required if the `img` field in the post's `data.yaml` was specified.
 
-## Custom templates
-Templates are added by creating a file named `<template_name>.html` at `<inPath>/includes`. This file shouldn't start with `{{ define }}` and end with `{{ end }}`, since the template name is just the file's name and there shouldn't be more than one template per file. As a special case, if there's a template located at `<inPath>/includes/head.html`, this template is rendered right before the end of the head tag.
+## Templates
+There are three templates that are required and they're located at: `<inPath>/pages/404.html`, `<inPath>/pages/home.html` and `<inPath>/pages/post.html`. Besides the required templates, there are also arbitrary templates. They are created by placing a file named `<template_name>.html` at `<inPath>/includes`. This file shouldn't start with `{{ define }}` and end with `{{ end }}`, since the template name is just the file's name and there shouldn't be more than one template per file. As a special case, if there's a template located at `<inPath>/includes/head.html`, this template is rendered right before the end of the head tag automatically.
 
 ## `<inPath>` structure
 `<inPath>` must have the following structure:
@@ -94,6 +94,7 @@ assets
 includes
   <template_name>.html
 pages
+  404.html
   post.html
   home.html
 posts
@@ -128,4 +129,4 @@ func main() {
 }
 ```
 
-There are some examples in the `testdata` directory, such as [this one](testdata/build/ok/1/in).
+There are some examples in the `testdata` directory, such as [this one](testdata/build/ok/1/in). Also, the [efreitasn.dev's repository](https://github.com/efreitasn/efreitasn.dev) is also a good example.
