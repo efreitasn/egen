@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - name: Downnload go@v1.13.8
+    - name: Downnload go@v1.14
       uses: actions/setup-go@v1
       with:
         go-version: 1.14
