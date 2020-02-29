@@ -198,6 +198,7 @@ func Build(bc BuildConfig) error {
 					Lang:                      l,
 					Author:                    c.Author,
 					ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
+					Posts:                     visiblePostsByLangTag[l.Tag],
 				}
 
 				if l.Default {
