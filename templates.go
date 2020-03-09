@@ -28,7 +28,7 @@ var indexHTML = `
 	{{ end }}
 	<title>{{ .Title }}</title>
 	{{ if .Description }}
-		<meta property="description" content="{{ .Description }}">
+		<meta name="description" content="{{ .Description }}">
 	{{ end }}
 	{{ if eq .Page "home" }}
 		<meta property="og:type" content="website">
