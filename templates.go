@@ -329,6 +329,7 @@ func generateSrcSetValueFn(gat, pat *assetsTreeNode, postSlug string, widths []i
 	return func(assetPath AssetRelPath) (string, error) {
 		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
 			n.addSizes(widths...)
+			n.processSizes()
 
 			if searchedInPAT {
 				return n.generateSrcSetValue(postSlug), nil

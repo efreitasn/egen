@@ -52,7 +52,7 @@ These are the functions that can be used in a template:
 * **dateISO(d time.Time) string**: transforms a `time.Time` into an ISO 8601 string.
 * **getInvisiblePost(l \*Lang, slug string) \*Post**: returns an invisible post (`feed: false`) given a `Lang` and the post's slug.
 * **assetLink(assetPath AssetRelPath) (string, error)**: returns the link of an asset given an `AssetRelPath`.
-* **srcSetValue(assetPath AssetRelPath) (string, error)**: returns the value of the `srcset` attribute given an `AssetRelPath`.
+* **srcSetValue(assetPath AssetRelPath) (string, error)**: given an `AssetRelPath`, adds the sizes provided in the config file to the asset and returns a string to be used as the `srcset` attribute's value.
 * **hasAsset(assetPath AssetRelPath) bool**: returns whether there's a node in the GAT or the current PAT that has a path equal to `assetPath`.
 * **postLinkBySlugAndLang(slug string, l \*Lang) string**: given the post's slug and a `Lang`, returns a link to the post.
 * **homeLinkByLang(l \*Lang) string**: given a `Lang`, returns a link to the home of the blog.
