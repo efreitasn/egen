@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -105,7 +104,7 @@ func generateAssetsTree(assetsPath string, ignoreRegexps []*regexp.Regexp) (*ass
 }
 
 func generateAssetsTreeRec(rootNode *assetsTreeNode, ignoreRegexps []*regexp.Regexp) error {
-	fileInfos, err := ioutil.ReadDir(rootNode.path)
+	fileInfos, err := os.ReadDir(rootNode.path)
 	if err != nil {
 		return err
 	}
@@ -195,7 +194,7 @@ func (n *assetsTreeNode) getContent() ([]byte, error) {
 		return n.content, nil
 	}
 
-	return ioutil.ReadFile(n.path)
+	return os.ReadFile(n.path)
 }
 
 func (n *assetsTreeNode) setContent(content []byte) {

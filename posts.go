@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
@@ -15,7 +14,7 @@ import (
 	"github.com/alecthomas/chroma"
 	chromaHTML "github.com/alecthomas/chroma/formatters/html"
 	"github.com/alecthomas/chroma/lexers"
-	"gopkg.in/russross/blackfriday.v2"
+	"github.com/russross/blackfriday/v2"
 	"gopkg.in/yaml.v2"
 )
 
@@ -69,7 +68,7 @@ func generatePostsLists(
 	responsiveImgMediaQueries string,
 	responsiveImgSizes []int,
 ) (allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag map[string][]*Post, err error) {
-	postsFileInfos, err := ioutil.ReadDir(postsInPath)
+	postsFileInfos, err := os.ReadDir(postsInPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -162,7 +161,7 @@ func generatePostsLists(
 
 			postContentFilename := "content_" + l.Tag + ".md"
 			postContentFilePath := path.Join(postDirPath, postContentFilename)
-			postContent, err := ioutil.ReadFile(postContentFilePath)
+			postContent, err := os.ReadFile(postContentFilePath)
 			if err != nil {
 				if os.IsNotExist(err) {
 					return nil, nil, nil, fmt.Errorf("%v for %v post doesn't exist", postContentFilename, postSlug)

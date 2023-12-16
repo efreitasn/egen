@@ -161,12 +161,12 @@ func TestBuild_ok(t *testing.T) {
 }
 
 func compareDirsRec(t *testing.T, a, b string) {
-	aFilesDirs, err := ioutil.ReadDir(a)
+	aFilesDirs, err := os.ReadDir(a)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 
-	bFilesDirs, err := ioutil.ReadDir(b)
+	bFilesDirs, err := os.ReadDir(b)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

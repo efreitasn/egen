@@ -1,6 +1,6 @@
 package egen
 
-import "gopkg.in/russross/blackfriday.v2"
+import "github.com/russross/blackfriday/v2"
 
 func findBFNodeIndex(node *blackfriday.Node, parent *blackfriday.Node) int {
 	children := getBFNodeChildren(parent)

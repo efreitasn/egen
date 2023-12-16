@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
@@ -181,7 +180,7 @@ func createBaseTemplateWithIncludes(
 	)
 
 	// includes
-	includesFileInfos, err := ioutil.ReadDir(includesInPath)
+	includesFileInfos, err := os.ReadDir(includesInPath)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +190,7 @@ func createBaseTemplateWithIncludes(
 			continue
 		}
 
-		includeFileContent, err := ioutil.ReadFile(path.Join(includesInPath, includesFileInfo.Name()))
+		includeFileContent, err := os.ReadFile(path.Join(includesInPath, includesFileInfo.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -217,7 +216,7 @@ func createBaseTemplateWithIncludes(
 }
 
 func createPageTemplate(pagesInPath string, baseTemplate *template.Template, pageName string) (*template.Template, error) {
-	pageContent, err := ioutil.ReadFile(path.Join(
+	pageContent, err := os.ReadFile(path.Join(
 		pagesInPath,
 		fmt.Sprintf("%v.html", pageName),
 	))
