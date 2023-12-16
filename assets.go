@@ -26,8 +26,8 @@ const (
 	IMGNODE
 )
 
-var imgNodeNameRegExp = regexp.MustCompile(".+\\.(jpg|jpeg|png)")
-var cssFilenameRegExp = regexp.MustCompile("^.*\\.css$")
+var imgNodeNameRegExp = regexp.MustCompile(`.+\.(jpg|jpeg|png)`)
+var cssFilenameRegExp = regexp.MustCompile(`^.*\.css$`)
 
 // AssetRelPath is the path of an asset relative to the global assets
 // tree (GAT) or to a post assets tree (PAT). The former happens
@@ -80,7 +80,7 @@ type assetsTreeNode struct {
 }
 
 var defaultIgnoreRegexps = []*regexp.Regexp{
-	regexp.MustCompile("\\.gitkeep"),
+	regexp.MustCompile(`\.gitkeep`),
 }
 
 // generateAssetsTree builds an assets tree root at assetsPath ignoring any descendant node
@@ -146,7 +146,7 @@ fileInfosLoop:
 				name: nodeName,
 				path: nodePath,
 				sizes: []*assetsTreeNodeImgSize{
-					&assetsTreeNodeImgSize{
+					{
 						original: true,
 						width:    width,
 					},

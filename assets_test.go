@@ -49,7 +49,7 @@ func TestGenerateAssetsTree(t *testing.T) {
 		parent: imgsDirNode,
 		path:   path.Join(imgsDirNode.path, "red.png"),
 		sizes: []*assetsTreeNodeImgSize{
-			&assetsTreeNodeImgSize{
+			{
 				original: true,
 				width:    1920,
 			},

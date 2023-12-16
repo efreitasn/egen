@@ -18,13 +18,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var mdCodeBlockInfoRegExp = regexp.MustCompile("^((?:[a-z]|[0-9])+?)(?:{((?:\\[[0-9]{1,},[0-9]{1,}\\])(?:(?:,\\[[0-9]{1,},[0-9]{1,}\\])+)?)})?$")
-var mdCodeBlockInfoHLinesRegExp = regexp.MustCompile("\\[([0-9]{1,}),([0-9]{1,})\\]")
-var postContentRegExp = regexp.MustCompile("(?s)^---\n(.*?)\n---(.*)")
+var mdCodeBlockInfoRegExp = regexp.MustCompile(`^((?:[a-z]|[0-9])+?)(?:{((?:\[[0-9]{1,},[0-9]{1,}\])(?:(?:,\[[0-9]{1,},[0-9]{1,}\])+)?)})?$`)
+var mdCodeBlockInfoHLinesRegExp = regexp.MustCompile(`\[([0-9]{1,}),([0-9]{1,})\]`)
+var postContentRegExp = regexp.MustCompile(`(?s)^---\n(.*?)\n---(.*)`)
 
 var nonPostAssetsRxs = []*regexp.Regexp{
-	regexp.MustCompile("content_.+\\.md"),
-	regexp.MustCompile("data\\.yaml"),
+	regexp.MustCompile(`content_.+\.md`),
+	regexp.MustCompile(`data\.yaml`),
 	// ignore all directories
 	regexp.MustCompile(".*/$"),
 }
@@ -229,7 +229,7 @@ func generatePostsLists(
 
 						var oldParentChildrenAfterNode []*blackfriday.Node
 						if nodeOldParentIndex+1 < len(oldParentChildren) {
-							oldParentChildrenAfterNode = oldParentChildren[nodeOldParentIndex+1 : len(oldParentChildren)]
+							oldParentChildrenAfterNode = oldParentChildren[nodeOldParentIndex+1:]
 						}
 
 						if oldParent.Next == nil {
@@ -246,7 +246,7 @@ func generatePostsLists(
 						} else {
 							oldParentNewParentIndex := findBFNodeIndex(oldParent, newParent)
 							newParentChildren := getBFNodeChildren(newParent)
-							newParentChildrenAfterOldParent := newParentChildren[oldParentNewParentIndex+1 : len(newParentChildren)]
+							newParentChildrenAfterOldParent := newParentChildren[oldParentNewParentIndex+1:]
 
 							newParent.AppendChild(node)
 

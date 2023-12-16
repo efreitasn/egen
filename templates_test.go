@@ -39,11 +39,11 @@ func TestGenerateAlternateLinks(t *testing.T) {
 			nil,
 			nil,
 			[]*AlternateLink{
-				&AlternateLink{
+				{
 					Lang: enDefault,
 					URL:  "/",
 				},
-				&AlternateLink{
+				{
 					Lang: ptBRNonDefault,
 					URL:  "/" + ptBRNonDefault.Tag,
 				},
@@ -57,11 +57,11 @@ func TestGenerateAlternateLinks(t *testing.T) {
 			[]string{"test"},
 			[]string{"foo"},
 			[]*AlternateLink{
-				&AlternateLink{
+				{
 					Lang: ptBRDefault,
 					URL:  "/test/foo",
 				},
-				&AlternateLink{
+				{
 					Lang: enNonDefault,
 					URL:  "/test/" + enNonDefault.Tag + "/foo",
 				},

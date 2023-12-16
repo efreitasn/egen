@@ -15,7 +15,7 @@ import (
 	"github.com/tdewolff/minify/v2/html"
 )
 
-var htmlFilenameRegExp = regexp.MustCompile(".*\\.html")
+var htmlFilenameRegExp = regexp.MustCompile(`.*\.html`)
 var indexHTML = `
 <!DOCTYPE html>
 <html lang="{{ .Lang.Tag }}">
@@ -151,7 +151,7 @@ func createBaseTemplateWithIncludes(
 		},
 		"homeLinkByLang": func(l *Lang) string {
 			if l.Default {
-				return fmt.Sprintf("/")
+				return "/"
 			}
 
 			return fmt.Sprintf("/%v", l.Tag)
@@ -328,7 +328,10 @@ func generateSrcSetValueFn(gat, pat *assetsTreeNode, postSlug string, widths []i
 	return func(assetPath AssetRelPath) (string, error) {
 		if n, searchedInPAT := findByRelPathInGATOrPAT(gat, pat, assetPath); n != nil {
 			n.addSizes(widths...)
-			n.processSizes()
+			err := n.processSizes()
+			if err != nil {
+				return "", fmt.Errorf("processing sizes: %w", err)
+			}
 
 			if searchedInPAT {
 				return n.generateSrcSetValue(postSlug), nil

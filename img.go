@@ -2,6 +2,7 @@ package egen
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -40,9 +41,15 @@ func resizeImg(width int, filePath string) ([]byte, error) {
 
 	switch format {
 	case "jpeg":
-		jpeg.Encode(&buff, resizedImg, nil)
+		err := jpeg.Encode(&buff, resizedImg, nil)
+		if err != nil {
+			return nil, fmt.Errorf("encoding jpeg: %w", err)
+		}
 	case "png":
-		png.Encode(&buff, resizedImg)
+		err := png.Encode(&buff, resizedImg)
+		if err != nil {
+			return nil, fmt.Errorf("encoding png: %w", err)
+		}
 	}
 
 	return buff.Bytes(), nil
