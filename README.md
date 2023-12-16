@@ -129,4 +129,4 @@ func main() {
 }
 ```
 
-There are some examples in the `testdata` directory, such as [this one](testdata/build/ok/1/in). Also, the [efreitasn.dev's repository](https://github.com/efreitasn/efreitasn.dev) is also a good example.
+There are some examples in the `testdata` directory, such as [this one](testdata/build/ok/1/in). The [efreitasn.dev's repository](https://github.com/efreitasn/efreitasn.dev) is also a good example.
