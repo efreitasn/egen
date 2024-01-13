@@ -277,7 +277,9 @@ func generatePostsLists(
 			var htmlBuff bytes.Buffer
 
 			var bfTraverseErr error
-			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
+			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{
+				Flags: blackfriday.HrefTargetBlank | blackfriday.NoreferrerLinks,
+			})
 
 			// traverse the tree to render each node
 			rootNode.Walk(func(bfNode *blackfriday.Node, entering bool) blackfriday.WalkStatus {
