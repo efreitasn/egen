@@ -341,6 +341,7 @@ func generatePostsLists(
 					}
 
 					return blackfriday.GoToNext
+
 				case bfNode.Type == blackfriday.Image && entering:
 					if bfNode.FirstChild == nil || string(bfNode.FirstChild.Literal) == "" {
 						bfTraverseErr = fmt.Errorf("%v img in %v post in %v must have an alt attribute", string(bfNode.LinkData.Destination), p.Slug, l.Tag)
@@ -401,6 +402,7 @@ func generatePostsLists(
 					)
 
 					return blackfriday.SkipChildren
+
 				case bfNode.Type == blackfriday.Paragraph:
 					if bfNode.FirstChild == nil || len(strings.Trim(string(bfNode.FirstChild.Literal), "\n\t ")) == 0 {
 						return blackfriday.GoToNext
@@ -410,6 +412,7 @@ func generatePostsLists(
 					bfNode.LastChild.Literal = bytes.TrimRight(bfNode.LastChild.Literal, "\n\t ")
 
 					return r.RenderNode(&htmlBuff, bfNode, entering)
+
 				default:
 					return r.RenderNode(&htmlBuff, bfNode, entering)
 				}
