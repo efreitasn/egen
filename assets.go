@@ -3,7 +3,9 @@ package egen
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -96,7 +98,7 @@ func generateAssetsTree(assetsPath string, ignoreRegexps []*regexp.Regexp) (*ass
 	}
 
 	err := generateAssetsTreeRec(rootNode, ignoreRegexps)
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 

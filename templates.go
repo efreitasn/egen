@@ -2,8 +2,10 @@ package egen
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"os"
 	"path"
 	"regexp"
@@ -181,7 +183,7 @@ func createBaseTemplateWithIncludes(
 
 	// includes
 	includesFileInfos, err := os.ReadDir(includesInPath)
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 
@@ -247,6 +249,7 @@ func executeMinifyAndWriteTemplate(t *template.Template, tData TemplateData, out
 		KeepDocumentTags: true,
 		KeepQuotes:       true,
 		KeepEndTags:      true,
+		KeepWhitespace:   true,
 	})
 
 	htmlMinified, err := m.Bytes("text/html", buff.Bytes())
