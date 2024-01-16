@@ -64,12 +64,11 @@ func Build(bc BuildConfig) error {
 	// chroma styles
 	var chromaStylesBuff bytes.Buffer
 
-	chromaStyle := bc.ChromaStyle
-	if chromaStyle == nil {
-		chromaStyle = styles.Get("swapoff")
+	if bc.ChromaStyle == nil {
+		bc.ChromaStyle = styles.Get("swapoff")
 	}
 
-	if err := chromaHTML.New().WriteCSS(&chromaStylesBuff, chromaStyle); err != nil {
+	if err := chromaHTML.New().WriteCSS(&chromaStylesBuff, bc.ChromaStyle); err != nil {
 		return err
 	}
 
@@ -96,15 +95,13 @@ func Build(bc BuildConfig) error {
 	}
 
 	// posts
-	allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag, err := generatePostsLists(
-		gat,
-		bc.InPath,
-		c.Langs,
-		assetsOutPath,
-		chromaStyle,
-		c.ResponsiveImgMediaQueries,
-		c.ResponsiveImgSizes,
-		c.Latex,
+	postsLists, err := generatePostsLists(
+		generatePostsListsInput{
+			bc:            &bc,
+			c:             c,
+			gat:           gat,
+			assetsOutPath: assetsOutPath,
+		},
 	)
 	if err != nil {
 		return err
@@ -114,7 +111,7 @@ func Build(bc BuildConfig) error {
 	baseTemplate, err := createBaseTemplateWithIncludes(
 		bc.TemplateFuncs,
 		path.Join(bc.InPath, "includes"),
-		invisiblePostsByLangTag,
+		postsLists.invisiblePostsByLangTag,
 		gat,
 		c.URL,
 		c.ResponsiveImgSizes,
@@ -155,7 +152,7 @@ func Build(bc BuildConfig) error {
 
 		// home page
 		homePageTemplateData := TemplateData{
-			Posts:                     visiblePostsByLangTag[l.Tag],
+			Posts:                     postsLists.visiblePostsByLangTag[l.Tag],
 			Lang:                      l,
 			Author:                    c.Author,
 			Color:                     c.Color,
@@ -189,7 +186,7 @@ func Build(bc BuildConfig) error {
 				Img:                       c.defaultImgByLangTag[l.Tag],
 				Lang:                      l,
 				Page:                      "404",
-				Posts:                     visiblePostsByLangTag[l.Tag],
+				Posts:                     postsLists.visiblePostsByLangTag[l.Tag],
 				Title:                     fmt.Sprintf("Not found - %v", c.Title),
 				ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
 				URL:                       "/404.html",
@@ -202,14 +199,14 @@ func Build(bc BuildConfig) error {
 		}
 
 		// post page
-		if len(visiblePostsByLangTag) > 0 || len(invisiblePostsByLangTag) > 0 {
+		if len(postsLists.visiblePostsByLangTag) > 0 || len(postsLists.invisiblePostsByLangTag) > 0 {
 			postsDirOutPath := path.Join(langOutPath, "posts")
 			err = os.Mkdir(postsDirOutPath, os.ModeDir|os.ModePerm)
 			if err != nil {
 				return err
 			}
 
-			for _, p := range allPostsByLangTag[l.Tag] {
+			for _, p := range postsLists.allPostsByLangTag[l.Tag] {
 				postDirPath := path.Join(postsDirOutPath, p.Slug)
 				err := os.Mkdir(postDirPath, os.ModeDir|os.ModePerm)
 				if err != nil {
@@ -225,7 +222,7 @@ func Build(bc BuildConfig) error {
 					Lang:                      l,
 					Author:                    c.Author,
 					ResponsiveImgMediaQueries: c.ResponsiveImgMediaQueries,
-					Posts:                     visiblePostsByLangTag[l.Tag],
+					Posts:                     postsLists.visiblePostsByLangTag[l.Tag],
 				}
 
 				postPageTemplateData.AlternateLinks = generateAlternateLinks(nil, []string{"posts", p.Slug}, c.Langs)
