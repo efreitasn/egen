@@ -3,7 +3,7 @@ package egen
 import (
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"os"
 	"path"
 	"reflect"
@@ -33,12 +33,10 @@ func TestBuild_ok(t *testing.T) {
 	latexGenerator = &latexTestGenerator{}
 
 	okDir := path.Join("testdata", "build", "ok")
-	errDir := path.Join("testdata", "build", "err")
 
 	tests := []struct {
-		bc        BuildConfig
-		nonNilErr bool
-		expected  string
+		bc       BuildConfig
+		expected string
 	}{
 		{
 			BuildConfig{
@@ -57,7 +55,6 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			false,
 			path.Join(okDir, "1", "out"),
 		},
 		{
@@ -77,7 +74,6 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			false,
 			path.Join(okDir, "2", "out"),
 		},
 		{
@@ -85,9 +81,32 @@ func TestBuild_ok(t *testing.T) {
 				InPath:  path.Join(okDir, "3", "in"),
 				OutPath: path.Join(okDir, "3", "test_output"),
 			},
-			false,
 			path.Join(okDir, "3", "out"),
 		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.bc.InPath, func(t *testing.T) {
+			err := Build(test.bc)
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			// defer os.RemoveAll(buildOutPath)
+
+			compareDirsRec(t, test.expected, test.bc.OutPath)
+		})
+	}
+}
+
+func TestBuild_err(t *testing.T) {
+	latexGenerator = &latexTestGenerator{}
+
+	errDir := path.Join("testdata", "build", "err")
+
+	tests := []struct {
+		bc       BuildConfig
+		expected string
+	}{
 		{
 			BuildConfig{
 				InPath:  path.Join(errDir, "1", "in"),
@@ -105,7 +124,6 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			true,
 			path.Join(errDir, "1", "out"),
 		},
 		{
@@ -125,7 +143,6 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			true,
 			path.Join(errDir, "2", "out"),
 		},
 		{
@@ -145,7 +162,6 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			true,
 			path.Join(errDir, "3", "out"),
 		},
 		{
@@ -165,7 +181,6 @@ func TestBuild_ok(t *testing.T) {
 					},
 				},
 			},
-			true,
 			path.Join(errDir, "4", "out"),
 		},
 	}
@@ -173,18 +188,9 @@ func TestBuild_ok(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.bc.InPath, func(t *testing.T) {
 			err := Build(test.bc)
-			if test.nonNilErr {
-				if err == nil {
-					t.Fatal("expected an error")
-				}
-
-				return
-			} else if err != nil {
-				t.Fatalf("unexpected err: %v", err)
+			if err == nil {
+				t.Fatal("expected an error")
 			}
-			// defer os.RemoveAll(buildOutPath)
-
-			compareDirsRec(t, test.expected, test.bc.OutPath)
 		})
 	}
 }
@@ -237,7 +243,7 @@ func compareDirsRec(t *testing.T, a, b string) {
 			t.Fatalf("unexpected err: %v", err)
 		}
 
-		aFileDirContentBs, err := ioutil.ReadAll(aFileDir)
+		aFileDirContentBs, err := io.ReadAll(aFileDir)
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
@@ -247,7 +253,7 @@ func compareDirsRec(t *testing.T, a, b string) {
 			t.Fatalf("unexpected err: %v", err)
 		}
 
-		bFileDirContentBs, err := ioutil.ReadAll(bFileDir)
+		bFileDirContentBs, err := io.ReadAll(bFileDir)
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
