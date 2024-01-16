@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -14,20 +15,25 @@ import (
 	"github.com/alecthomas/chroma"
 	chromaHTML "github.com/alecthomas/chroma/formatters/html"
 	"github.com/alecthomas/chroma/lexers"
+	"github.com/efreitasn/egen/internal/latex"
 	"github.com/russross/blackfriday/v2"
 	"gopkg.in/yaml.v2"
 )
 
-var mdCodeBlockInfoRegExp = regexp.MustCompile(`^((?:[a-z]|[0-9])+?)(?:{((?:\[[0-9]{1,},[0-9]{1,}\])(?:(?:,\[[0-9]{1,},[0-9]{1,}\])+)?)})?$`)
-var mdCodeBlockInfoHLinesRegExp = regexp.MustCompile(`\[([0-9]{1,}),([0-9]{1,})\]`)
-var postContentRegExp = regexp.MustCompile(`(?s)^---\n(.*?)\n---(.*)`)
+var (
+	latexGenerator latexImageGenerator = &latex.ImageGenerator{}
 
-var nonPostAssetsRxs = []*regexp.Regexp{
-	regexp.MustCompile(`content_.+\.md`),
-	regexp.MustCompile(`data\.yaml`),
-	// ignore all directories
-	regexp.MustCompile(".*/$"),
-}
+	mdCodeBlockInfoRegExp       = regexp.MustCompile(`^((?:[a-z]|[0-9])+?)(?:{((?:\[[0-9]{1,},[0-9]{1,}\])(?:(?:,\[[0-9]{1,},[0-9]{1,}\])+)?)})?$`)
+	mdCodeBlockInfoHLinesRegExp = regexp.MustCompile(`\[([0-9]{1,}),([0-9]{1,})\]`)
+	postContentRegExp           = regexp.MustCompile(`(?s)^---\n(.*?)\n---(.*)`)
+
+	nonPostAssetsRxs = []*regexp.Regexp{
+		regexp.MustCompile(`content_.+\.md`),
+		regexp.MustCompile(`data\.yaml`),
+		// ignore all directories
+		regexp.MustCompile(".*/$"),
+	}
+)
 
 // Post is a post received by a template.
 type Post struct {
@@ -61,13 +67,16 @@ type postYAMLDataFileContent struct {
 
 func generatePostsLists(
 	gat *assetsTreeNode,
-	postsInPath string,
+	inPath string,
 	langs []*Lang,
 	assetsOutPath string,
 	chromaStyle *chroma.Style,
 	responsiveImgMediaQueries string,
 	responsiveImgSizes []int,
+	latex bool,
 ) (allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag map[string][]*Post, err error) {
+	postsInPath := path.Join(inPath, "posts")
+
 	postsFileInfos, err := os.ReadDir(postsInPath)
 	if err != nil {
 		return nil, nil, nil, err
@@ -208,10 +217,13 @@ func generatePostsLists(
 
 			mdProcessor := blackfriday.New(blackfriday.WithExtensions(blackfriday.CommonExtensions))
 			rootNode := mdProcessor.Parse(postContentMD)
+			latexBlockMap := map[*blackfriday.Node]struct{}{}
+			inlineLatexMap := map[*blackfriday.Node]struct{}{}
 
-			// traverse the tree to remove img tags from inside p tags.
 			rootNode.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-				if node.Type == blackfriday.Image && entering {
+				switch {
+				// Remove img tags from inside p tags.
+				case node.Type == blackfriday.Image && entering:
 					oldParent := node.Parent
 
 					if oldParent.Type == blackfriday.Paragraph {
@@ -269,6 +281,121 @@ func generatePostsLists(
 							oldParent.Unlink()
 						}
 					}
+
+				case node.Type == blackfriday.Text && entering:
+					if latex {
+						for i := 0; i < len(node.Literal); {
+							if node.Literal[i] == '$' {
+								if i != 0 && node.Literal[i-1] == '\\' {
+									node.Literal = slices.Delete(node.Literal, i-1, i)
+									i++
+									continue
+								}
+
+								if len(node.Literal) > i+1 && node.Literal[i+1] == '$' {
+									var (
+										found bool
+
+										start = i + 2
+										end   = start
+									)
+
+									for ; end < len(node.Literal); end++ {
+										if node.Literal[end] == '$' && node.Literal[end-1] != '\\' && len(node.Literal) > end+1 && node.Literal[end+1] == '$' {
+											found = true
+											break
+										}
+									}
+
+									if !found {
+										return blackfriday.GoToNext
+									}
+
+									content := node.Literal[start:end]
+
+									// If it's empty (i.e. $$$$), remove it.
+									if len(content) == 0 {
+										node.Literal = slices.Delete(node.Literal, start-2, end+2)
+										i++
+										continue
+									}
+
+									// If the first $ is not on the 0th position, then the current block needs to be
+									// splitted.
+									if i != 0 {
+										textNode := blackfriday.NewNode(blackfriday.Text)
+										textNode.Literal = node.Literal[:i]
+
+										node.InsertBefore(textNode)
+									}
+
+									// The content after the ending $$, if there's any, is the caption.
+									node.Title = node.Literal[end+2:]
+									node.Literal = content
+									latexBlockMap[node] = struct{}{}
+
+									return blackfriday.GoToNext
+								}
+
+								// Inline latex.
+								var (
+									found bool
+
+									start = i + 1
+									end   = start
+								)
+
+								for ; end < len(node.Literal); end++ {
+									if node.Literal[end] == '$' && node.Literal[end-1] != '\\' {
+										found = true
+										break
+									}
+								}
+
+								if !found {
+									return blackfriday.GoToNext
+								}
+
+								content := node.Literal[start:end]
+
+								// If it's empty (i.e. $$), remove it.
+								if len(content) == 0 {
+									node.Literal = slices.Delete(node.Literal, start-1, end+1)
+									i++
+									continue
+								}
+
+								// If the starting $ is not on the 0th position, then a text node needs to be inserted
+								// before the current node.
+								if i != 0 {
+									textNode := blackfriday.NewNode(blackfriday.Text)
+									textNode.Literal = node.Literal[:i]
+
+									node.InsertBefore(textNode)
+								}
+
+								// If the ending $ is not on the last position, then a text node needs to be inserted
+								// after the current node.
+								if end != len(node.Literal)-1 {
+									textNode := blackfriday.NewNode(blackfriday.Text)
+									textNode.Literal = node.Literal[end+1:]
+
+									if node.Next == nil {
+										node.Parent.AppendChild(textNode)
+									} else {
+										node.Next.InsertBefore(textNode)
+									}
+								}
+
+								node.Literal = content
+								inlineLatexMap[node] = struct{}{}
+
+								return blackfriday.GoToNext
+							}
+
+							i++
+						}
+					}
 				}
 
 				return blackfriday.GoToNext
@@ -280,6 +407,11 @@ func generatePostsLists(
 			r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{
 				Flags: blackfriday.HrefTargetBlank | blackfriday.NoreferrerLinks,
 			})
+
+			err = latexGenerator.SetDirPath(inPath)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("setting latex image generator dir path: %w", err)
+			}
 
 			// traverse the tree to render each node
 			rootNode.Walk(func(bfNode *blackfriday.Node, entering bool) blackfriday.WalkStatus {
@@ -405,8 +537,53 @@ func generatePostsLists(
 
 					return blackfriday.SkipChildren
 
+				case bfNode.Type == blackfriday.Text && mapContains(latexBlockMap, bfNode):
+					if !entering {
+						return blackfriday.GoToNext
+					}
+
+					svgBs, err := latexGenerator.SVGBlock(bfNode.Literal)
+					if err != nil {
+						bfTraverseErr = fmt.Errorf("generating latex block in %v post: %w", p.Slug, err)
+
+						return blackfriday.Terminate
+					}
+
+					var figCaption string
+					if len(bfNode.Title) > 0 {
+						figCaption = fmt.Sprintf("<figcaption>%s</figcaption>", bfNode.Title)
+					}
+
+					fmt.Fprintf(
+						&htmlBuff,
+						`<figure><div style="text-align: center; font-size: 2rem">%s</div>%s</figure>`,
+						svgBs,
+						figCaption,
+					)
+
+					return blackfriday.GoToNext
+
+				case bfNode.Type == blackfriday.Text && mapContains(inlineLatexMap, bfNode):
+					if !entering {
+						return blackfriday.GoToNext
+					}
+
+					svgBs, err := latexGenerator.SVGInline(bfNode.Literal)
+					if err != nil {
+						bfTraverseErr = fmt.Errorf("generating inline latex in %v post: %w", p.Slug, err)
+
+						return blackfriday.Terminate
+					}
+
+					fmt.Fprintf(&htmlBuff, `<span>%s</span>`, svgBs)
+
+					return blackfriday.GoToNext
+
 				case bfNode.Type == blackfriday.Paragraph:
-					if bfNode.FirstChild == nil || len(strings.Trim(string(bfNode.FirstChild.Literal), "\n\t ")) == 0 {
+					firstChildIsEmpty := bfNode.FirstChild == nil || len(strings.Trim(string(bfNode.FirstChild.Literal), "\n\t ")) == 0
+					onlyChildIsLatexBlock := bfNode.FirstChild != nil && mapContains(latexBlockMap, bfNode.FirstChild) && bfNode.FirstChild.Next == nil
+
+					if firstChildIsEmpty || onlyChildIsLatexBlock {
 						return blackfriday.GoToNext
 					}
 

@@ -1,0 +1,11 @@
+title: The thing
+description:
+  en: A blog
+url: https://foo.bar
+author:
+  name: John Doe
+langs:
+  - tag: en
+    name: English
+    default: true
+latex: true

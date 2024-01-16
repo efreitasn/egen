@@ -98,12 +98,13 @@ func Build(bc BuildConfig) error {
 	// posts
 	allPostsByLangTag, visiblePostsByLangTag, invisiblePostsByLangTag, err := generatePostsLists(
 		gat,
-		path.Join(bc.InPath, "posts"),
+		bc.InPath,
 		c.Langs,
 		assetsOutPath,
 		chromaStyle,
 		c.ResponsiveImgMediaQueries,
 		c.ResponsiveImgSizes,
+		c.Latex,
 	)
 	if err != nil {
 		return err

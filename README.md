@@ -44,6 +44,7 @@ responsiveImgSizes:
   - 960
   - 1280
 responsiveImgMediaQueries: "(max-width: 26.5625em) 100vw, (max-width: 64em) 65vw, 50vw"
+latex: true
 ```
 
 ## Functions
@@ -130,3 +131,6 @@ func main() {
 ```
 
 There are some examples in the `testdata` directory, such as [this one](testdata/build/ok/1/in). The [efreitasn.dev's repository](https://github.com/efreitasn/efreitasn.dev) is also a good example.
+
+## Latex
+Latex can be enabled by setting `latex` to `true` in the config file. Note that Node.js `>= v20.11.0` is required for generating latex images.

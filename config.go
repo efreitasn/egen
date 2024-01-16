@@ -37,6 +37,7 @@ type configFileData struct {
 	Author                    *Author
 	ResponsiveImgSizes        []int  `yaml:"responsiveImgSizes"`
 	ResponsiveImgMediaQueries string `yaml:"responsiveImgMediaQueries"`
+	Latex                     bool
 }
 
 type config struct {

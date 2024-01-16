@@ -1,6 +1,7 @@
 package egen
 
 import (
+	"fmt"
 	"html/template"
 	"io/ioutil"
 	"os"
@@ -10,7 +11,27 @@ import (
 	"time"
 )
 
+type latexTestGenerator struct{}
+
+func (*latexTestGenerator) SetDirPath(string) error {
+	return nil
+}
+
+func (*latexTestGenerator) SVGBlock(math []byte) ([]byte, error) {
+	str := fmt.Sprintf("latex-block(%s)", math)
+
+	return []byte(str), nil
+}
+
+func (*latexTestGenerator) SVGInline(math []byte) ([]byte, error) {
+	str := fmt.Sprintf("latex-inline(%s)", math)
+
+	return []byte(str), nil
+}
+
 func TestBuild_ok(t *testing.T) {
+	latexGenerator = &latexTestGenerator{}
+
 	okDir := path.Join("testdata", "build", "ok")
 	errDir := path.Join("testdata", "build", "err")
 
@@ -58,6 +79,14 @@ func TestBuild_ok(t *testing.T) {
 			},
 			false,
 			path.Join(okDir, "2", "out"),
+		},
+		{
+			BuildConfig{
+				InPath:  path.Join(okDir, "3", "in"),
+				OutPath: path.Join(okDir, "3", "test_output"),
+			},
+			false,
+			path.Join(okDir, "3", "out"),
 		},
 		{
 			BuildConfig{
